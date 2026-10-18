@@ -435,6 +435,15 @@ body.is-touch .hud-bc { bottom: calc(276px + env(safe-area-inset-bottom, 0px)); 
 .net-chat-form .net-input { flex: 1; }
 table.net-rg { width: 100%; margin-top: 6px; }
 table.net-rg tr.me td { color: var(--buoy); }
+.net-hf { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 6px; }
+.net-hf-race { padding: 8px 10px; border: 1px solid var(--line); background: var(--raise); border-radius: 4px; min-width: 0; }
+.net-hf-race table.net-rg { margin-top: 4px; font-size: 13px; }
+.net-hf-race td:first-child { width: 2.2em; color: var(--muted); }
+.net-hf-race .st.race { color: var(--buoy); }
+.net-hf-ov ol { margin: 6px 0 0; padding-left: 1.6em; font-size: 13px; line-height: 1.5; }
+.net-hf-ov li.me { color: var(--buoy); }
+small.gps { color: var(--muted); font-size: 10px; letter-spacing: .06em; }
+#net-ranks table.net-rg { font-size: 13px; }
 #race-chat { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: 36%; z-index: 30; width: min(360px, calc(100vw - 24px)); display: grid; gap: 6px; justify-items: start; pointer-events: none; }
 #race-chat > * { pointer-events: auto; }
 #race-chat .rc-log { width: 100%; box-sizing: border-box; max-height: 180px; overflow-y: auto; display: grid; gap: 2px; padding: 6px 9px; border-radius: 6px; background: rgba(8,14,22,.62); color: #fff; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
@@ -6511,7 +6520,7 @@ function directPack(desc, kind, id, name) {
   B.push(1, kind === "I" ? 1 : 2, ...directUnhex(id), DIRECT_SETUP.indexOf(setup));
   str(u); str(p);
   B.push(...directUnhex(f.replace(/:/g, "")));
-  const seen = new Set(), wide = [], local = [];
+  const seen = new Set(), wide = [], local = [], relay = [];
   for (const m of s.matchAll(/a=candidate:\S+ 1 udp \d+ (\S+) (\d+) typ (host|srflx|prflx|relay)/gi)) {
     const addr = m[1], port = +m[2], t = DIRECT_TYPES.indexOf(m[3].toLowerCase());
     const key = addr + " " + port; if (seen.has(key) || port < 1 || port > 65535) continue; seen.add(key);
@@ -6521,10 +6530,10 @@ function directPack(desc, kind, id, name) {
     else if (v6) e = [(t << 4) | 6, ...v6];
     else if (md) e = [(t << 4) | 7, ...directUnhex(md.slice(1).join(""))];
     else if (/^[A-Za-z0-9.-]{1,63}$/.test(addr)) { const b = enc.encode(addr); e = [(t << 4) | 8, b.length, ...b]; }
-    if (e) (t === 0 ? local : wide).push([...e, port >> 8, port & 255]);
+    if (e) (t === 0 ? local : t === 3 ? relay : wide).push([...e, port >> 8, port & 255]);
   }
-  // the ways in from across the internet, then the ones that only work on the same Wi-Fi
-  const keep = [...wide.slice(0, 4), ...local.slice(0, 3)];
+  // a relay or two (they always work), the ways in from across the internet, then the ones for the same Wi-Fi
+  const keep = [...relay.slice(0, 2), ...wide.slice(0, 4 - Math.min(relay.length, 2)), ...local.slice(0, 2)];
   if (!keep.length) throw new Error("no way in");
   B.push(keep.length); for (const c of keep) B.push(...c);
   str(kind === "I" ? name || "" : "");
@@ -6584,7 +6593,7 @@ function directSdp(o) {
   return L.join("\r\n") + "\r\n";
 }
 // wait for this browser's ways in (a few seconds at most: we send what we've got)
-function directGather(pc, ms = 3000) {
+function directGather(pc, ms = directRelays.length ? 6000 : 3000) {
   return new Promise((res) => {
     if (pc.iceGatheringState === "complete") { res(); return; }
     const t = setTimeout(res, ms);
@@ -6618,7 +6627,9 @@ function directSend(dc, s, lossy) {
   try { dc.send(s); } catch (e) { /* closing */ }
 }
 function directClose(pc) { try { pc.close(); } catch (e) { /* gone */ } }
-function directNewPc() { return new RTCPeerConnection({ iceServers: DIRECT_ICE }); }
+// the relays (TURN) the site's server hands out, when it has some: for links that can't go direct
+let directRelays = [];
+function directNewPc() { return new RTCPeerConnection({ iceServers: [...DIRECT_ICE, ...directRelays] }); }
 
 // ---- the host's hub: a race room that friends join through invite codes ----
 function directHub() {
@@ -6887,7 +6898,9 @@ function srvLobby() {
     }
     busy = true;
     try {
-      const r = await srvCall({ op: "poll", id, key, pres, since });
+      const who = netIdentity(false);
+      const r = await srvCall({ op: "poll", id, key, pres, since, pid: who.pid, pkey: who.pkey });
+      if (r.pidBad) netIdentity(true);              // someone else's id: take a new one
       fails = 0; inLobby = true; setConn(true); readyRes();
       peers = Object.freeze((r.peers || []).map((p) => Object.freeze({ peer: p.peer, by: null, isMe: p.peer === id, sameTab: p.peer === id, kind: "viewer", guest: false, presence: Object.freeze(p.presence || {}) })));
       fire(peerL, { peers });
@@ -6919,6 +6932,8 @@ function srvLobby() {
     chat(tx, nm) { return srvCall({ op: "chat", id, key, tx, nm }); },
     knock(code) { return srvCall({ op: "knock", id, key, code }); },
     send(to, msg) { return srvCall({ op: "send", id, key, to, msg }); },
+    result(rid, rows) { return srvCall({ op: "result", id, key, rid, rows }); },
+    ranks(pids) { return srvCall({ op: "ranks", pids }); },
   };
 }
 
@@ -6958,9 +6973,17 @@ const NET = {
   pend: new Map(),                 // hosting a regatta: who's knocked → their invite, until they're in
   chat: { lobby: [], room: [], seen: new Set(), mine: [], open: false },
   rg: null,                        // hosting a points series: { n, k, t: peer → { nm, pts, w }, done: race ids tallied }
+  hf: null,                        // hosting heats and finals (netHfNew)
+  hosted: new Map(),               // hosting: each race we started → its plan, until it's scored
+  rk: null,                        // the last race's rating changes: [rid, [[peer, change, rating]]]
+  rr: null, rrSig: "",             // racing: our report of the race (what we saw)
+  loadAt: 0,
+  pid: null, ranks: new Map(), rankTop: [], ranksAt: 0,   // your lasting id, and the rankings we've seen
 };
 const NET_RG_SIZES = [0, 3, 5, 7];                    // races in a points series (0: single races)
 const NET_RG_PTS = [10, 8, 6, 5, 4, 3, 2, 1];         // series points by place
+// the regatta's format: single races, a points series, or heats and finals
+function netFmt() { const v = netOpts().rgN; return v === "hf" ? "hf" : NET_RG_SIZES.includes(v) && v ? "series" : "single"; }
 const NET_NO_RTC = "This browser has direct connections switched off, so online races can't work in it. Solo races and the 1v1 split screen still do.";
 const netRound = (x, d) => { const k = 10 ** d; return Math.round(x * k) / k; };
 // the online settings (your online crew, and the course you'd host)
@@ -7013,13 +7036,14 @@ async function netInit() {
   try { if (window.claude && typeof window.claude.use === "function") room = await window.claude.use("room"); } catch (e) { room = null; }
   if (!room && NET.rtc && await srvAvailable()) {
     room = srvLobby(); NET.srv = true;
+    srvCall({ op: "ice" }).then((r) => { if (Array.isArray(r.iceServers)) directRelays = r.iceServers.filter((x) => x && x.urls); }).catch(() => {});
     room.onChat(netLobbyChat);
     room.onInbox(netInbox);
   }
   if (!room) { NET.status = "off"; netRender(); return; }
   NET.room = room;
   room.onConnection((c) => { if (NET.status === "off") return; NET.status = c ? "on" : "connecting"; netRender(); }, netFatal);
-  room.onPeers((ch) => { NET.lobby = ch.peers; netRenderLobby(); netSrvSweep(); }, netFatal);
+  room.onPeers((ch) => { NET.lobby = ch.peers; netRenderLobby(); netSrvSweep(); if (!$("online").hidden) netFetchRanks(false); }, netFatal);
   netLobbyPresence();
   netRender();
 }
@@ -7076,7 +7100,8 @@ async function netEnter(code, create) {
 function netAdopt(g, create, code) {
   NET.game = g; NET.code = code; NET.meHost = !!create; NET.created = !!create; NET.joinedAt = Date.now(); NET.ready = false; NET.rs = "room"; NET.ld = "";
   netRoomReset();
-  if (create && netOpts().rgN) NET.rg = netRgNew(netOpts().rgN);
+  if (create && netFmt() === "series") NET.rg = netRgNew(netOpts().rgN);
+  if (create && !NET.hostTimer) NET.hostTimer = setInterval(netHostTick, 1000);
   NET.cfg = null; NET.myCfg = create ? netRoomCfg(null) : null; NET.lastRid = ""; NET.players = []; NET.me = null; NET.sig = "";
   g.onPeers(() => { if (NET.game === g) netGamePeers(); }, (e) => { if (NET.game === g) netGameLost(e); });
   if (g.onInvites) g.onInvites(() => { if (NET.game === g) netRenderInvites(); });
@@ -7107,7 +7132,8 @@ function netGameLost(e) {
 function netRoomCfg(prev) {
   const o = netOpts();
   const cls = classOK(S.classById(o.cls), o.venue) ? o.cls : "8+";
-  return { st: "room", rid: (prev && prev.rid) || "", ven: o.venue, d: o.dist, cls, fill: o.fill, ev: "1st", wk: o.wind, inf: o.inf ? 1 : 0, rg: NET.rg ? netRgOut() : null };
+  return { st: "room", rid: (prev && prev.rid) || "", ven: o.venue, d: o.dist, cls, fill: o.fill, ev: "1st", wk: o.wind, inf: o.inf ? 1 : 0, rg: NET.rg ? netRgOut() : null,
+    fmt: netFmt() === "hf" ? "hf" : null, hf: NET.hf ? netHfOut() : null, rk: NET.rk };
 }
 // what you tell the others in the race room
 function netGamePresence() {
@@ -7119,6 +7145,7 @@ function netGamePresence() {
     sch: o.schoolId, boat: o.boat, cox: cls.cox ? o.coxIdx : null, crew,
     pw: Math.round(crew.reduce((s, id) => s + rowerWatts(rowerById(id)), 0)), man: o.manual ? 1 : null,
     cfg: NET.meHost ? NET.myCfg : null, ch: NET.chat.mine.length ? NET.chat.mine : null,
+    pid: NET.room && NET.room.server ? NET.pid : null, rr: NET.rr,
   }).catch(() => {});
 }
 // another player's presence, checked field by field (everything here comes from someone else's page)
@@ -7132,8 +7159,12 @@ function netPlayer(p) {
     school: S.SCHOOLS.find((s) => s.id === q.sch) || S.SCHOOLS[0], boat: S.BOATS.some((b) => b.id === q.boat) ? q.boat : "hudson",
     cox: Number.isInteger(q.cox) && q.cox >= 0 && q.cox < S.COXES.length ? q.cox : null, crew, pw: Number.isFinite(q.pw) ? clamp(q.pw, 0, 6000) : 0,
     man: q.man === 1, s: Array.isArray(q.s) ? q.s : null, a: Array.isArray(q.a) ? q.a : null, cfg: q.host === 1 ? netCfgOK(q.cfg) : null,
-    ch: netChatOK(q.ch),
+    ch: netChatOK(q.ch), pid: typeof q.pid === "string" && /^p[a-z0-9]{11}$/.test(q.pid) ? q.pid : null, rr: netReportOK(q.rr),
   };
+}
+function netRkOK(rk) {
+  if (!Array.isArray(rk) || typeof rk[0] !== "string" || !Array.isArray(rk[1])) return null;
+  return [rk[0].slice(0, 16), rk[1].slice(0, 8).filter((x) => Array.isArray(x) && typeof x[0] === "string" && Number.isFinite(x[1]) && Number.isFinite(x[2])).map((x) => [x[0].slice(0, 80), Math.round(clamp(x[1], -999, 999)), Math.round(clamp(x[2], 0, 9999))])];
 }
 function netCfgOK(c) {
   if (!c || typeof c !== "object") return null;
@@ -7143,7 +7174,8 @@ function netCfgOK(c) {
   if (![500, 1000, 1500, 2000].includes(c.d)) return null;
   const cls = S.BOAT_CLASSES.find((x) => x.id === c.cls);
   if (!cls || !classOK(cls, c.ven)) return null;
-  const out = { st: c.st, rid: c.rid, ven: c.ven, d: c.d, cls: c.cls, fill: NET_FILLS.includes(c.fill) ? c.fill : "none", ev: S.EVENTS.some((e) => e.id === c.ev) ? c.ev : "1st", wk: NET_WINDS.includes(c.wk) ? c.wk : "random", inf: c.inf === 1 ? 1 : 0, rg: netRgOK(c.rg) };
+  const out = { st: c.st, rid: c.rid, ven: c.ven, d: c.d, cls: c.cls, fill: NET_FILLS.includes(c.fill) ? c.fill : "none", ev: S.EVENTS.some((e) => e.id === c.ev) ? c.ev : "1st", wk: NET_WINDS.includes(c.wk) ? c.wk : "random", inf: c.inf === 1 ? 1 : 0, rg: netRgOK(c.rg),
+    fmt: c.fmt === "hf" ? "hf" : null, hf: netHfOK(c.hf), rk: netRkOK(c.rk) };
   if (c.st === "room") return out;
   if (!c.rid || !Number.isInteger(c.seed) || c.seed < 0) return null;
   const w = c.w;
@@ -7161,7 +7193,8 @@ function netCfgOK(c) {
     if (!Array.isArray(a) || !Number.isInteger(a[0]) || a[0] < 1 || a[0] > 8 || used.has(a[0]) || !S.SCHOOLS.some((s) => s.id === a[1])) continue;
     used.add(a[0]); ai.push([a[0], a[1]]);
   }
-  return { ...out, seed: c.seed >>> 0, w: [w[0], ...w.slice(1).map((x) => clamp(x, -20, 20))], tod: c.tod, lanes, ai };
+  const aip = typeof c.aip === "string" && lanes.some((l) => l[0] === c.aip) ? c.aip : null;
+  return { ...out, seed: c.seed >>> 0, w: [w[0], ...w.slice(1).map((x) => clamp(x, -20, 20))], tod: c.tod, lanes, ai, aip };
 }
 // the room changed: who's here, who's hosting, and whether a race is starting
 function netGamePeers() {
@@ -7194,7 +7227,7 @@ function netGamePeers() {
   if (cfg && cfg.cls !== clsBefore && !NET.meHost) netGamePresence();     // your crew for the class the host picked
   netWatchRace();
   netIngest();
-  if (NET.meHost) netLobbyPresence();
+  if (NET.meHost) { netLobbyPresence(); netHostTick(); }
   netRenderRoom();
 }
 // a race is starting (or it's "go" on the one you've loaded)
@@ -7214,6 +7247,13 @@ function netWatchRace() {
 function netCanStart() {
   if (!NET.meHost || !NET.me) return "Only the host can start the race.";
   if (NET.myCfg && NET.myCfg.st !== "room") return "A race is already under way.";
+  if (netFmt() === "hf" && NET.hf && NET.hf.st !== "done") {
+    const nx = netHfNext();
+    if (!nx) return NET.hf.st === "done" ? "" : "Waiting for the last race's result.";
+    const busy = nx.lanes.map(([peer]) => NET.players.find((p) => p.peer === peer)).filter((p) => p && !p.me && p.rs === "race");
+    return busy.length ? `${busy.map((p) => p.name).join(" and ")} ${busy.length > 1 ? "are" : "is"} still racing.` : "";
+  }
+  if (netFmt() === "hf" && netOpts().fill !== "none" && !NET.players.some((p) => !p.me && p.rs === "race")) return "";
   const racers = NET.players.filter((p) => p.me || p.ready);
   if (racers.length < 2) return NET.players.length < 2 ? "Waiting for a friend to join." : "Waiting for someone to be ready.";
   const out = NET.players.filter((p) => !p.me && p.rs === "race");
@@ -7226,20 +7266,39 @@ function netStart() {
   if (NET.rg && NET.rg.k >= NET.rg.n) NET.rg = netRgNew(NET.rg.n);
   const c0 = netRoomCfg(NET.myCfg);
   const racers = NET.players.filter((p) => p.me || p.ready).sort((a, b) => (a.me ? -1 : b.me ? 1 : a.j - b.j)).slice(0, 8);
+  let plan = null;
+  if (netFmt() === "hf") {
+    if (!NET.hf || NET.hf.st === "done") {
+      NET.hf = netHfNew(racers, c0.fill);
+      const H = NET.hf.races.length;
+      netChatSys(`The draw is made: ${NET.hf.ent.size} crews, ${H > 1 ? `${H} heats` : "one heat for lanes"}, then ${NET.hf.ent.size > 8 ? "Finals A and B" : "the final"}.`);
+      netHostChanged();
+      return;
+    }
+    plan = netHfNext();
+    if (!plan) { netHostChanged(); return; }
+  }
   const seed = (Math.random() * 4294967296) >>> 0;
   const rand = S.rng(seed);
   const ven = VENUES[c0.ven];
   const w = makeWind(ven.forceWind ? pick(ven.forceWind, rand) : c0.wk, rand);
   const tod = pick(["morning", "midday", "afternoon", "afternoon", "golden"], rand);
-  const lanes = racers.map((p, i) => [p.peer, NET_LANES[i]]);
-  const ai = [];
-  if (c0.fill !== "none") {
+  const lanes = plan ? plan.lanes : racers.map((p, i) => [p.peer, NET_LANES[i]]);
+  const ai = plan ? plan.ai : [];
+  if (!plan && c0.fill !== "none") {
     const free = [1, 2, 3, 4, 5, 6, 7, 8].filter((l) => !lanes.some((x) => x[1] === l));
     const taken = new Set(racers.map((p) => p.school.id));
     const pool = [...shuffle(S.SCHOOLS.filter((s) => !taken.has(s.id)), rand), ...shuffle(S.SCHOOLS.filter((s) => taken.has(s.id)), rand)];
     free.forEach((l, i) => ai.push([l, pool[i % pool.length].id]));
   }
-  NET.myCfg = { ...c0, st: "load", rid: netNewCode(8), seed, w: [w.kind, ...[w.tail, w.cross, w.gust, w.rough, w.ph1, w.ph2, w.ph3].map((x) => netRound(x, 3))], tod, lanes, ai };
+  // the GPS crews are rowed by someone in the race: the host if they're in it
+  const rid = netNewCode(8), aip = lanes.some(([p]) => p === NET.me.peer) ? NET.me.peer : lanes[0][0];
+  const pl = (peer) => NET.players.find((x) => x.peer === peer) || {};
+  NET.hosted.set(rid, { lanes, ai, aip, race: plan ? plan.race : null, at: Date.now(), done: false, backAt: 0, seen: new Set(),
+    pids: new Map(lanes.map(([p]) => [p, pl(p).pid || null])), names: new Map(lanes.map(([p]) => [p, pl(p).name || "Rower"])) });
+  if (plan) plan.race.rid = rid;
+  NET.loadAt = Date.now();
+  NET.myCfg = { ...netRoomCfg(NET.myCfg), st: "load", rid, seed, w: [w.kind, ...[w.tail, w.cross, w.gust, w.rough, w.ph1, w.ph2, w.ph3].map((x) => netRound(x, 3))], tod, lanes, ai, aip };
   NET.cfg = NET.myCfg;
   netGamePresence(); netLobbyPresence();
   netWatchRace();
@@ -7264,8 +7323,10 @@ async function netLoadRace(c, lane) {
     const pl = NET.players.find((p) => p.peer === peer);
     remote[ln] = { kind: "human", peer, name: pl ? pl.name : "Rower", school: pl ? pl.school : S.SCHOOLS[0], boat: pl ? pl.boat : "hudson", crew: pl ? pl.crew : [], pw: pl ? pl.pw : 0 };
   }
-  const aiLocal = NET.meHost;              // the host rows the GPS crews; everyone else watches the host's
-  if (!aiLocal) for (const [ln, sid] of c.ai) remote[ln] = { kind: "ai", peer: NET.hostPeer, school: S.SCHOOLS.find((s) => s.id === sid) };
+  // one crew rows the GPS crews (c.aip; the host, in older rooms) and everyone else watches theirs
+  const aiLocal = c.aip ? c.aip === NET.me.peer : NET.meHost;
+  if (!aiLocal) for (const [ln, sid] of c.ai) remote[ln] = { kind: "ai", peer: c.aip || NET.hostPeer, school: S.SCHOOLS.find((s) => s.id === sid) };
+  NET.rr = null; NET.rrSig = "";
   launchRace({ cfg: c, myLane: lane, remote, ai: aiLocal ? c.ai : [], code: NET.code, hostPeer: NET.hostPeer, aiLocal, me: netMe(S.classById(c.cls)) });
   NET.ld = c.rid; NET.sendT = 0; NET.resDirty = false;
   netGamePresence();
@@ -7408,11 +7469,7 @@ function netRaceTick(dt, R) {
   const o = R.online;
   for (const b of R.boats) if (b.remote) netApply(R, b, dt);
   // the host: once every crew is on the start (or after 30 s), it's go
-  const mc = NET.myCfg;
-  if (NET.meHost && mc && mc.st === "load" && mc.rid === o.rid && G.state === "ready") {
-    const waiting = mc.lanes.filter(([peer]) => { if (NET.me && peer === NET.me.peer) return false; const p = NET.players.find((x) => x.peer === peer); return p && p.ld !== o.rid; });
-    if (!waiting.length || performance.now() - o.loadT > 30000) { NET.myCfg = { ...mc, st: "go" }; NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); netWatchRace(); }
-  }
+  netHostGoCheck();
   // waiting at the start
   if (G.state === "ready" && o.count == null && !o.goSeen) {
     o.waitT += dt;
@@ -7439,7 +7496,7 @@ function netRaceTick(dt, R) {
 // leaving mid-race: tell the others, then back to the race room
 function netQuitRace(stay) {
   const R = G.race;
-  if (R && R.online) { if (!R.player.finished) netSend(R, { quit: true, rs: "room" }); }
+  if (R && R.online) { if (!R.player.finished) netSend(R, { quit: true, rs: "room" }); netReport(R, true); }
   NET.rs = "room"; NET.ld = "";
   if (NET.meHost && NET.myCfg && NET.myCfg.st !== "room") NET.myCfg = { ...netRoomCfg(NET.myCfg), rid: NET.myCfg.rid };
   netGamePresence(); netLobbyPresence();
@@ -7453,7 +7510,7 @@ function netBackToRoom(stayOnline = true) {
     for (const b of R.boats) if (b.ai && !b.finished && !b.dsq) { b.finished = true; b.finishTime = R.t + (-b.x) / Math.max(1, b.vAvg || b.v); }
     netSend(R);
   }
-  if (R && R.online) netRgTally(R, true);
+  if (R && R.online) netReport(R, true);
   netQuitRace(true);
   enterMenu();
   if (stayOnline) netOpen(); else netExit();
@@ -7468,10 +7525,12 @@ function netResults(R) {
   $("res-title").textContent = P.dsq ? "Excluded" : pPlace === 1 ? "Winners!" : `${ordinal(pPlace)} place`;
   const left = R.boats.filter((b) => !b.finished && !b.dsq).length;
   if (allDone && !R.recorded) { R.recorded = true; G.netRec.races++; if (pPlace === 1) G.netRec.wins++; saveStore(); }
-  netRgTally(R, false);
-  const rm = $("res-medals"), rec = G.netRec, rg = NET.cfg && NET.cfg.rg;
+  netReport(R, false);
+  const rm = $("res-medals"), rec = G.netRec, rg = NET.cfg && NET.cfg.rg, rk = NET.cfg && NET.cfg.rk;
+  const mineRk = rk && rk[0] === R.online.rid && NET.me ? rk[1].find((x) => x[0] === NET.me.peer) : null;
+  const rkTxt = mineRk ? ` · Rating ${mineRk[2]} (${mineRk[1] >= 0 ? "+" : ""}${mineRk[1]})` : "";
   const rgTxt = rg ? ` · Series: race ${clamp(rg.k, 1, rg.n)} of ${rg.n}${rg.t.length ? `, ${escapeHtml(rg.t[0][1])} leads on ${rg.t[0][2]} pts` : ""}` : "";
-  rm.innerHTML = `<span class="medal-ic"></span>${left ? `${left} crew${left > 1 ? "s" : ""} still racing… · ` : ""}Online record: ${rec.wins} win${rec.wins === 1 ? "" : "s"} from ${rec.races} race${rec.races === 1 ? "" : "s"}${rgTxt}`;
+  rm.innerHTML = `<span class="medal-ic"></span>${left ? `${left} crew${left > 1 ? "s" : ""} still racing… · ` : ""}Online record: ${rec.wins} win${rec.wins === 1 ? "" : "s"} from ${rec.races} race${rec.races === 1 ? "" : "s"}${rgTxt}${rkTxt}`;
   rm.hidden = false;
 }
 
@@ -7482,7 +7541,7 @@ function netSrvName() { return netClean(netOpts().srvName, 24) || `${netName() |
 function netMaxCrews() { return clamp(netOpts().maxCrews | 0 || 8, 2, 8); }
 // a room's own odds and ends, cleared whenever you go into (or out of) one
 function netRoomReset() {
-  NET.pend.clear(); NET.rg = null; NET.codeTaken = false;
+  NET.pend.clear(); NET.rg = null; NET.hf = null; NET.hosted.clear(); NET.rk = null; NET.rr = null; NET.rrSig = ""; NET.codeTaken = false;
   NET.chat.room = []; NET.chat.mine = []; NET.chat.seen.clear(); NET.chat.known = null;
   netRenderChat();
 }
@@ -7540,7 +7599,7 @@ async function netSrvKnock(g, m) {
   const p = { id: null, at: Date.now() };
   NET.pend.set(m.from, p);
   let code = null;
-  try { code = await g.invite(netName()); } catch (e) { code = null; }
+  try { code = await g.invite(netName()); } catch (e) { console.warn("Couldn't make an invite:", e); code = null; }
   if (NET.game !== g || !code) { NET.pend.delete(m.from); if (NET.game === g) NET.room.send(m.from, { t: "full" }).catch(() => {}); return; }
   const u = directUnpack(code, "I");
   if (u.o) p.id = u.o.id;
@@ -7612,29 +7671,6 @@ function netRgOK(rg) {
     t.push([r[0], netClean(r[1]) || "Rower", clamp(Math.round(r[2]), 0, 999), clamp(r[3], 0, 99)]);
   }
   return { n: rg.n, k: rg.k, t };
-}
-// the host scores a race once every human crew is home (or as they go back to the room, whatever's happened)
-function netRgTally(R, force) {
-  const rg = NET.rg;
-  if (!NET.meHost || !rg || !R.online || rg.done.has(R.online.rid) || rg.k >= rg.n || !NET.me) return;
-  const humans = R.boats.filter((b) => b === R.player || (b.remote && b.remote.kind === "human"));
-  if (!force && !humans.every((b) => b.finished || b.dsq)) return;
-  if (!R.started) return;
-  rg.done.add(R.online.rid); rg.k++;
-  const order = standings(R);
-  for (const b of humans) {
-    const peer = b === R.player ? NET.me.peer : b.remote.peer;
-    const pl = NET.players.find((p) => p.peer === peer);
-    const place = order.indexOf(b) + 1, pts = b.dsq ? 0 : NET_RG_PTS[place - 1] || 0;
-    const e = rg.t.get(peer) || { nm: "", pts: 0, w: 0 };
-    e.nm = b === R.player ? netName() || "Rower" : pl ? pl.name : e.nm || b.school.short;
-    e.pts += pts; if (place === 1 && !b.dsq) e.w++;
-    rg.t.set(peer, e);
-  }
-  if (NET.myCfg) { NET.myCfg = { ...NET.myCfg, rg: netRgOut() }; NET.cfg = NET.myCfg; }
-  netGamePresence(); netLobbyPresence();
-  const top = netRgOut().t[0];
-  if (top) netChatSys(rg.k >= rg.n ? `Series over: ${top[1]} wins it on ${top[2]} points!` : `Series: race ${rg.k} of ${rg.n} done. ${top[1]} leads on ${top[2]} points.`, true);
 }
 function netRenderRegatta() {
   const box = document.getElementById("net-rgtab"); if (!box) return;
@@ -7779,6 +7815,252 @@ function netWireRaceChat() {
   box.querySelector(".rc-form").addEventListener("submit", (e) => { e.preventDefault(); const tx = inp.value; inp.value = ""; netChatSend(tx); netRaceChatClose(); });
   inp.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); inp.value = ""; netRaceChatClose(); } });
   setInterval(() => { if (!NET.chat.open) netRaceChatRender(); }, 500);
+}
+
+// ---------------------------------------------------------------------------
+// Race results. Every crew in a race reports what it saw (rr in its presence: each lane's finish, time,
+// exclusion and distance). The host keeps the plan of each race it started (NET.hosted), takes the report of
+// whoever rowed the GPS crews (or any finished report), and scores it: points series, heats and finals, and
+// the online rankings. So the host doesn't have to be in the race.
+// ---------------------------------------------------------------------------
+function netReport(R, force) {
+  if (!R || !R.online) return;
+  const humans = R.boats.filter((b) => b === R.player || (b.remote && b.remote.kind === "human"));
+  const done = force || humans.every((b) => b.finished || b.dsq);
+  const rr = [R.online.rid, done ? 1 : 0, R.boats.map((b) => [b.lane, b.finished ? 1 : 0, b.finished && isFinite(b.finishTime) ? netRound(b.finishTime, 3) : 0, b.dsq ? 1 : 0, netRound(b.x, 1)])];
+  const sig = JSON.stringify(rr);
+  if (sig === NET.rrSig) return;
+  NET.rrSig = sig; NET.rr = rr;
+  netGamePresence();
+}
+function netReportOK(rr) {
+  if (!Array.isArray(rr) || typeof rr[0] !== "string" || !/^[a-z0-9]{1,16}$/.test(rr[0]) || !Array.isArray(rr[2])) return null;
+  const rows = [];
+  for (const x of rr[2].slice(0, 8)) {
+    if (!Array.isArray(x) || !Number.isInteger(x[0]) || x[0] < 1 || x[0] > 8) continue;
+    rows.push([x[0], x[1] === 1 ? 1 : 0, Number.isFinite(x[2]) ? clamp(x[2], 0, 7200) : 0, x[3] === 1 ? 1 : 0, Number.isFinite(x[4]) ? clamp(x[4], -2200, 600) : -2200]);
+  }
+  return [rr[0], rr[1] === 1 ? 1 : 0, rows];
+}
+// the host, every second and whenever the room changes: say go, and score the races that are over
+function netHostTick() {
+  if (!NET.meHost || !NET.game) return;
+  netHostGoCheck();
+  const now = Date.now();
+  for (const [rid, h] of NET.hosted) {
+    if (h.done) continue;
+    const racers = h.lanes.map(([peer]) => NET.players.find((p) => p.peer === peer)).filter(Boolean);
+    for (const p of racers) if (p.ld === rid) h.seen.add(p.peer);
+    const reps = racers.filter((p) => p.rr && p.rr[0] === rid);
+    const best = reps.find((p) => p.peer === h.aip && p.rr[1]) || reps.find((p) => p.rr[1] && !h.ai.length) || reps.find((p) => p.rr[1]);
+    const back = h.seen.size > 0 && racers.every((p) => p.ld !== rid);
+    const never = !h.seen.size && now - h.at > 60000;              // nobody ever got to the start
+    if (!best && !back && !never) { h.backAt = 0; continue; }
+    if (!best && !never) { if (!h.backAt) h.backAt = now; if (now - h.backAt < 4000) continue; }
+    h.done = true;
+    const rep = best || reps.find((p) => p.peer === h.aip) || reps[0];
+    netRaceTally(rid, h, rep ? rep.rr : null);
+  }
+}
+// everyone's on the start (or it's been 30 s): go
+function netHostGoCheck() {
+  const mc = NET.myCfg;
+  if (!NET.meHost || !mc || mc.st !== "load") return;
+  const waiting = mc.lanes.filter(([peer]) => { const p = NET.players.find((x) => x.peer === peer); return p && p.ld !== mc.rid; });
+  if (waiting.length && Date.now() - NET.loadAt < 30000) return;
+  NET.myCfg = { ...mc, st: "go" }; NET.cfg = NET.myCfg;
+  netGamePresence(); netLobbyPresence(); netWatchRace();
+}
+// one race, scored
+function netRaceTally(rid, h, rr) {
+  const by = new Map();
+  if (rr) for (const x of rr[2]) by.set(x[0], x);
+  const row = (x) => (x ? { fin: x[1] === 1, ft: x[2], dsq: x[3] === 1, x: x[4] } : { fin: false, ft: 0, dsq: true, x: -1e9 });
+  const rows = [
+    ...h.lanes.map(([peer, lane]) => ({ lane, human: true, id: peer, nm: h.names.get(peer) || "Rower", pid: h.pids.get(peer), ...row(by.get(lane)) })),
+    ...h.ai.map(([lane, sid]) => ({ lane, human: false, id: "ai:" + sid, nm: (S.SCHOOLS.find((s) => s.id === sid) || S.SCHOOLS[0]).short, ...row(by.get(lane)) })),
+  ];
+  rows.sort((a, b) => (a.dsq - b.dsq) || (a.fin !== b.fin ? (a.fin ? -1 : 1) : a.fin ? a.ft - b.ft : b.x - a.x));
+  rows.forEach((r, i) => { r.pos = i + 1; });
+  const humans = rows.filter((r) => r.human);
+  // a points series
+  const rg = NET.rg;
+  if (rg && !rg.done.has(rid) && rg.k < rg.n && humans.length) {
+    rg.done.add(rid); rg.k++;
+    for (const r of humans) {
+      const e = rg.t.get(r.id) || { nm: r.nm, pts: 0, w: 0 };
+      e.nm = r.nm; e.pts += r.dsq ? 0 : NET_RG_PTS[r.pos - 1] || 0; if (r.pos === 1 && !r.dsq) e.w++;
+      rg.t.set(r.id, e);
+    }
+    const top = netRgOut().t[0];
+    if (top) netChatSys(rg.k >= rg.n ? `Series over: ${top[1]} wins it on ${top[2]} points!` : `Series: race ${rg.k} of ${rg.n} done. ${top[1]} leads on ${top[2]} points.`);
+  }
+  // heats and finals
+  if (h.race && NET.hf) netHfRecord(h.race, rows);
+  else netChatSys(`Result: ${rows.slice(0, 3).filter((r) => !r.dsq).map((r) => `${r.pos}. ${r.nm}`).join(", ") || "nobody finished"}.`);
+  // the online rankings: everyone in the race with a lasting id, by place among the people
+  const ranked = humans.filter((r) => r.pid);
+  if (NET.room && NET.room.server && ranked.length >= 2) {
+    const n = ranked.length;
+    const out = ranked.map((r, i) => [r.pid, r.nm, r.dsq ? n : i + 1]);
+    NET.room.result(rid, out).then((res) => {
+      const back = new Map(ranked.map((r) => [r.pid, r.id]));
+      NET.rk = [rid, (res.rk || []).map(([pid, d, rt]) => [back.get(pid), d, rt]).filter((x) => x[0])];
+      netHostChanged(); netFetchRanks(true);
+    }).catch(() => {});
+  }
+  // the host wasn't in it: back to the room's settings
+  if (NET.myCfg && NET.myCfg.rid === rid && NET.myCfg.st !== "room" && NET.rs !== "race") NET.myCfg = { ...netRoomCfg(NET.myCfg), rid };
+  netHostChanged();
+}
+
+// ---------------------------------------------------------------------------
+// Heats and finals. The host makes the draw from everyone ready (plus GPS crews, if they fill the lanes):
+// up to eight crews race one heat for lanes, more race two heats. Then the top three in each heat (and the
+// fastest after them, to make six) go to Final A, the rest to Final B. Finals are seeded by heat time: the
+// fastest gets lane 4. A race with nobody in it is decided on heat times. Players not in a race wait in the room.
+// ---------------------------------------------------------------------------
+function netHfNew(racers, fill) {
+  const entries = racers.map((p) => ({ id: p.peer, nm: p.name, sid: p.school.id, human: true }));
+  if (fill !== "none") {
+    const nAi = clamp(Math.min(12, entries.length + 8) - entries.length, 0, 8);
+    shuffle(S.SCHOOLS.slice(), Math.random).slice(0, nAi).forEach((s) => entries.push({ id: "ai:" + s.id, nm: s.short, sid: s.id, human: false }));
+  }
+  const H = entries.length > 8 ? 2 : 1;
+  const heats = Array.from({ length: H }, () => []);
+  [...shuffle(entries.filter((e) => e.human), Math.random), ...shuffle(entries.filter((e) => !e.human), Math.random)].forEach((e, i) => heats[i % H].push(e.id));
+  const races = heats.map((ids, i) => ({ kind: "heat", label: H > 1 ? `Heat ${i + 1}` : "Heat", ids, res: null, rid: "" }));
+  return { st: "heats", ent: new Map(entries.map((e) => [e.id, e])), races, out: [] };
+}
+function netHfRunning(r) { const h = r.rid && NET.hosted.get(r.rid); return !!(h && !h.done); }
+// the next race to row: { race, lanes, ai }, or null (one's still going, or it's all over)
+function netHfNext() {
+  const hf = NET.hf; if (!hf) return null;
+  for (;;) {
+    const race = hf.races.find((r) => !r.res);
+    if (!race || netHfRunning(race)) return null;
+    const here = (id) => !hf.ent.get(id).human || NET.players.some((p) => p.peer === id);
+    const present = race.ids.filter(here);
+    if (!present.some((id) => hf.ent.get(id).human)) { netHfRecord(race, netHfSim(race)); continue; }
+    const order = race.kind === "heat" ? [...present.filter((id) => hf.ent.get(id).human), ...present.filter((id) => !hf.ent.get(id).human)] : present;
+    const lanes = [], ai = [];
+    order.forEach((id, i) => { const e = hf.ent.get(id); if (e.human) lanes.push([id, NET_LANES[i]]); else ai.push([NET_LANES[i], e.sid]); });
+    return { race, lanes, ai };
+  }
+}
+function netHfTime(id) {
+  for (const r of NET.hf.races) { if (r.kind !== "heat" || !r.res) continue; const x = r.res.find((y) => y.id === id); if (x) return x.dsq || x.t == null ? Infinity : x.t; }
+  return Infinity;
+}
+function netHfPos(id) {
+  for (const r of NET.hf.races) { if (r.kind !== "heat" || !r.res) continue; const x = r.res.find((y) => y.id === id); if (x) return x.pos; }
+  return 99;
+}
+const netHfByTime = (a, b) => (netHfTime(a) - netHfTime(b)) || (netHfPos(a) - netHfPos(b));
+// nobody here to row it: placed on heat times
+function netHfSim(race) {
+  return [...race.ids].sort(netHfByTime).map((id, i) => ({ id, lane: 0, pos: i + 1, fin: false, ft: 0, dsq: false, sim: true }));
+}
+function netHfRecord(race, rows) {
+  const hf = NET.hf;
+  const got = new Set(rows.map((r) => r.id));
+  race.res = [...rows.filter((r) => hf.ent.has(r.id)).map((r) => ({ id: r.id, lane: r.lane || 0, pos: r.pos, t: r.fin ? r.ft : null, dsq: !!r.dsq, sim: !!r.sim })),
+    ...race.ids.filter((id) => !got.has(id)).map((id) => ({ id, lane: 0, pos: 99, t: null, dsq: true, sim: false }))];
+  race.res.forEach((r, i) => { r.pos = i + 1; });
+  const win = race.res[0];
+  if (win && !win.dsq) netChatSys(`${race.label}: ${hf.ent.get(win.id).nm} wins${win.sim ? " on heat times" : win.t != null ? ` in ${S.fmtTime(win.t, 2)}` : ""}.`);
+  if (hf.st === "heats" && hf.races.every((r) => r.res)) netHfFinals();
+  else if (hf.st === "finals" && hf.races.every((r) => r.res)) {
+    hf.st = "done";
+    const fin = (k) => (hf.races.find((r) => r.label === k) || { res: [] }).res.map((r) => r.id);
+    hf.ov = [...fin("Final A"), ...fin("Final B"), ...hf.out];
+    netChatSys(`${hf.ent.get(hf.ov[0]).nm} wins the regatta!`);
+  }
+}
+function netHfFinals() {
+  const hf = NET.hf, all = [...hf.ent.keys()];
+  let A, B = [];
+  if (all.length <= 8) A = all.sort(netHfByTime);
+  else {
+    A = [];
+    for (const r of hf.races) if (r.kind === "heat") A.push(...r.res.filter((x) => !x.dsq).slice(0, 3).map((x) => x.id));
+    const rest = all.filter((id) => !A.includes(id)).sort(netHfByTime);
+    while (A.length < 6 && rest.length) A.push(rest.shift());
+    A.sort(netHfByTime);
+    B = rest.splice(0, 6);
+    hf.out = rest;
+  }
+  if (B.length > 1) hf.races.push({ kind: "final", label: "Final B", ids: B, res: null, rid: "" });
+  else hf.out = [...B, ...hf.out];
+  hf.races.push({ kind: "final", label: "Final A", ids: A, res: null, rid: "" });
+  hf.st = "finals";
+  netChatSys(`The finals: ${A.map((id) => hf.ent.get(id).nm).join(", ")} make Final A.`);
+}
+// what everyone sees of the draw
+function netHfOut() {
+  const hf = NET.hf, nm = (id) => (hf.ent.get(id) || { nm: "?" }).nm, hu = (id) => (hf.ent.get(id) || {}).human ? 1 : 0;
+  const nx = hf.races.find((r) => !r.res);
+  return {
+    st: hf.st, nx: nx ? nx.label : "",
+    r: hf.races.map((r) => [r.label, r.res ? 2 : netHfRunning(r) ? 1 : 0,
+      r.res ? r.res.map((x) => [x.lane, nm(x.id), x.dsq ? 0 : x.pos, x.t == null ? 0 : netRound(x.t, 2), hu(x.id), x.id]) : r.ids.map((id) => [0, nm(id), 0, 0, hu(id), id])]),
+    ov: hf.ov ? hf.ov.slice(0, 16).map((id) => [nm(id), hu(id), id]) : null,
+  };
+}
+function netHfOK(hf) {
+  if (!hf || typeof hf !== "object" || !["heats", "finals", "done"].includes(hf.st) || !Array.isArray(hf.r)) return null;
+  const row = (x) => (Array.isArray(x) ? [clamp(x[0] | 0, 0, 8), netClean(x[1]) || "?", clamp(x[2] | 0, 0, 16), Number.isFinite(x[3]) ? clamp(x[3], 0, 7200) : 0, x[4] === 1 ? 1 : 0, typeof x[5] === "string" ? x[5].slice(0, 80) : ""] : null);
+  const r = hf.r.slice(0, 4).filter((x) => Array.isArray(x) && Array.isArray(x[2])).map((x) => [netClean(x[0], 12) || "Race", [0, 1, 2].includes(x[1]) ? x[1] : 0, x[2].slice(0, 8).map(row).filter(Boolean)]);
+  const ov = Array.isArray(hf.ov) ? hf.ov.slice(0, 16).filter(Array.isArray).map((x) => [netClean(x[0]) || "?", x[1] === 1 ? 1 : 0, typeof x[2] === "string" ? x[2].slice(0, 80) : ""]) : null;
+  return { st: hf.st, nx: netClean(hf.nx, 12), r, ov };
+}
+function netRenderHf() {
+  const box = document.getElementById("net-hfbox"); if (!box) return;
+  const hf = NET.cfg && NET.cfg.hf, fmtHf = NET.cfg && NET.cfg.fmt === "hf";
+  box.hidden = !hf && !fmtHf;
+  if (box.hidden) return;
+  const meId = NET.me && NET.me.peer;
+  if (!hf) { box.innerHTML = `<span class="eyebrow">Heats & finals</span><div class="net-empty">${NET.meHost ? "Press Make the draw when the crews are ready: everyone ready is entered." : "When the host makes the draw, everyone who's ready is entered."} Up to eight crews race one heat for lanes; more race two heats, then the top three in each (and the fastest after them) make Final A and the rest race Final B.</div>`; return; }
+  const card = ([label, st, rows]) => `<div class="net-hf-race"><div class="net-inv-top"><b>${escapeHtml(label)}</b><span class="st${st === 1 ? " race" : ""}">${st === 2 ? "Result" : st === 1 ? "Racing" : hf.nx === label ? "Next" : "To come"}</span></div>`
+    + `<table class="res net-rg"><tbody>${rows.map((x) => `<tr${x[5] && x[5] === meId ? ' class="me"' : ""}><td>${st === 2 ? (x[2] || "DNF") : ""}</td><td>${escapeHtml(x[1])}${x[4] ? "" : ' <small class="gps">GPS</small>'}</td><td class="num">${st === 2 && x[3] ? S.fmtTime(x[3], 2) : ""}</td></tr>`).join("")}</tbody></table></div>`;
+  const ov = hf.ov ? `<div class="net-hf-race net-hf-ov"><div class="net-inv-top"><b>Regatta result</b><span class="st ok">${escapeHtml(hf.ov[0] ? hf.ov[0][0] : "")} wins</span></div><ol>${hf.ov.map((x) => `<li${x[2] && x[2] === meId ? ' class="me"' : ""}>${escapeHtml(x[0])}${x[1] ? "" : ' <small class="gps">GPS</small>'}</li>`).join("")}</ol></div>` : "";
+  box.innerHTML = `<span class="eyebrow">Heats & finals${hf.st === "done" ? " · over" : hf.nx ? ` · next: ${escapeHtml(hf.nx)}` : ""}</span><div class="net-hf">${ov}${hf.r.map(card).join("")}</div>`;
+}
+
+// ---------------------------------------------------------------------------
+// Online rankings: a rating for each player (kept by the lobby server, Elo-style), from regatta races against people
+// ---------------------------------------------------------------------------
+const NET_ID_KEY = "hotr-player-v1";
+function netIdentity(fresh) {
+  let o = null;
+  try { o = JSON.parse(localStorage.getItem(NET_ID_KEY) || "null"); } catch (e) { o = null; }
+  if (fresh || !o || !/^p[a-z0-9]{11}$/.test(o.pid || "") || !/^[a-z0-9]{24}$/.test(o.pkey || "")) {
+    o = { pid: "p" + srvToken(11), pkey: srvToken(24) };
+    try { localStorage.setItem(NET_ID_KEY, JSON.stringify(o)); } catch (e) { /* this visit only */ }
+  }
+  NET.pid = o.pid;
+  return o;
+}
+async function netFetchRanks(force) {
+  if (!NET.room || !NET.room.server) return;
+  if (!force && Date.now() - NET.ranksAt < 30000) return;
+  NET.ranksAt = Date.now();
+  const pids = [NET.pid, ...NET.players.map((p) => p.pid)].filter(Boolean);
+  try {
+    const r = await NET.room.ranks(pids);
+    NET.rankTop = r.top || [];
+    for (const row of NET.rankTop) NET.ranks.set(row.pid, row);
+    for (const [pid, row] of Object.entries(r.players || {})) NET.ranks.set(pid, row);
+  } catch (e) { return; }
+  netRenderRanks(); netRenderRoom(true);
+}
+function netRenderRanks() {
+  const box = document.getElementById("net-ranks"); if (!box) return;
+  const me = NET.pid && NET.ranks.get(NET.pid);
+  const rows = NET.rankTop.slice(0, 20);
+  box.innerHTML = (rows.length ? `<table class="res net-rg"><thead><tr><th>#</th><th>Rower</th><th>Rating</th><th>Races</th><th>Wins</th></tr></thead><tbody>${rows.map((r) => `<tr${r.pid === NET.pid ? ' class="me"' : ""}><td>${r.pos}</td><td>${escapeHtml(r.nm)}</td><td class="num">${r.r}</td><td class="num">${r.n}</td><td class="num">${r.w}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="net-empty">Nobody's ranked yet.</div>`)
+    + `<div class="hint">${me ? `You: ${me.pos ? `#${me.pos} · ` : ""}${me.r} (best ${me.best}) from ${me.n} race${me.n === 1 ? "" : "s"}.` : "Everyone starts on 1000. Race other people in a regatta and your rating moves with every race: beat a higher-rated crew and it goes up more."} GPS crews don't count.</div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -8103,6 +8385,7 @@ function netBuild(view) {
       <div class="net-lobby-cols">
         <div class="net-lobby-main">
           <div class="field"><span class="eyebrow">Regattas on now</span><div class="net-list" id="net-open"></div></div>
+          <div class="field"><span class="eyebrow">Online rankings</span><div id="net-ranks"><div class="net-empty">Loading the rankings…</div></div></div>
           <div class="hint" id="net-who"></div>
         </div>
         ${NET_CHAT_HTML("Lobby chat", "Say something to everyone online…")}
@@ -8123,6 +8406,7 @@ function netBuild(view) {
     $("net-open").addEventListener("click", pickSrv);
     wireDirect(); netWireCrew(); netWireChat();
     $("net-msg").textContent = NET.msg;
+    netRenderRanks(); netFetchRanks(true);
     return;
   }
   if (view === "lobby") {
@@ -8194,7 +8478,7 @@ function netBuild(view) {
       </div>
       <div class="field"><span class="eyebrow">Energy</span><div class="toggles"><label for="net-inf"><input type="checkbox" id="net-inf"> Infinite energy for everyone (no rate limit)</label></div></div>
       <div class="row2">
-        <div class="field"><label class="eyebrow" for="net-fmt">Format</label><select id="net-fmt">${NET_RG_SIZES.map((n) => `<option value="${n}">${n ? `Points series: ${n} races` : "Single races"}</option>`).join("")}</select><div class="hint">Series points by place: ${NET_RG_PTS.join(", ")}. Changing the format starts the table again.</div></div>
+        <div class="field"><label class="eyebrow" for="net-fmt">Format</label><select id="net-fmt">${NET_RG_SIZES.map((n) => `<option value="${n}">${n ? `Points series: ${n} races` : "Single races"}</option>`).join("")}<option value="hf">Heats & finals</option></select><div class="hint">Series points by place: ${NET_RG_PTS.join(", ")}. Heats & finals: a draw, heats, then Finals A and B. Changing the format starts again.</div></div>
         ${g && g.auto ? `<div class="field"><label class="eyebrow" for="net-sname">Regatta name</label><input class="net-input" id="net-sname" maxlength="24" autocomplete="off"></div>` : ""}
       </div>
       ${g && g.auto ? `<div class="row2">
@@ -8204,6 +8488,7 @@ function netBuild(view) {
     </div>
     <div class="net-summary" id="net-summary"></div>
     <div class="field" id="net-rgtab" hidden></div>
+    <div class="field" id="net-hfbox" hidden></div>
     ${NET_CHAT_HTML("Room chat", "Say something to the room… (T to talk while racing)")}
     ${NET_CREW_HTML}
     <div class="go-row">
@@ -8259,8 +8544,12 @@ function netBuild(view) {
   $("net-inf").addEventListener("change", (e) => { o.inf = e.target.checked; netHostChanged(); });
   $("net-fmt").addEventListener("change", (e) => {
     const n = parseInt(e.target.value, 10);
-    o.rgN = NET_RG_SIZES.includes(n) ? n : 0;
-    if (NET.meHost) { NET.rg = o.rgN ? netRgNew(o.rgN) : null; if (o.rgN) netChatSys(`New points series: ${o.rgN} races.`); }
+    o.rgN = e.target.value === "hf" ? "hf" : NET_RG_SIZES.includes(n) ? n : 0;
+    if (NET.meHost) {
+      NET.rg = netFmt() === "series" ? netRgNew(o.rgN) : null; NET.hf = null;
+      if (netFmt() === "series") netChatSys(`New points series: ${o.rgN} races.`);
+      if (netFmt() === "hf") netChatSys("Heats & finals: the host makes the draw from everyone who's ready.");
+    }
     netHostChanged();
   });
   if (g && g.auto) {
@@ -8275,7 +8564,7 @@ function netBuild(view) {
 function netHostChanged() {
   saveStore();
   if (NET.meHost && NET.myCfg && NET.myCfg.st === "room") { NET.myCfg = netRoomCfg(NET.myCfg); NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); }
-  else if (NET.meHost && NET.myCfg) { NET.myCfg = { ...NET.myCfg, rg: NET.rg ? netRgOut() : null }; NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); }
+  else if (NET.meHost && NET.myCfg) { const r = netRoomCfg(NET.myCfg); NET.myCfg = { ...NET.myCfg, rg: r.rg, fmt: r.fmt, hf: r.hf, rk: r.rk }; NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); }
   netCrewPanel();
   netRenderRoom(true);
 }
@@ -8326,7 +8615,7 @@ function netRenderRoom(force) {
   $("net-players").innerHTML = players.map((p) => {
     const st = p.rs === "race" ? ["Racing", "race"] : p.host ? ["Host", "ok"] : p.ready ? ["Ready", "ok"] : ["Not ready", ""];
     const coxNm = p.cox != null && cls.cox ? ` · cox ${S.COXES[p.cox].name}` : "";
-    return `<div class="net-row${p.me ? " me" : ""}"><span class="blade" style="background:linear-gradient(90deg,${p.school.c1} 70%,${p.school.c2} 70%)"></span><b>${escapeHtml(p.name)}${p.me ? " <small>(you)</small>" : ""}</b><span class="st ${st[1]}">${st[0]}</span><small>${escapeHtml(p.school.short)}${escapeHtml(coxNm)}${p.pw ? ` · ${Math.round(p.pw)} W` : ""}${p.man ? " · every stroke" : ""}</small></div>`;
+    return `<div class="net-row${p.me ? " me" : ""}"><span class="blade" style="background:linear-gradient(90deg,${p.school.c1} 70%,${p.school.c2} 70%)"></span><b>${escapeHtml(p.name)}${p.me ? " <small>(you)</small>" : ""}</b><span class="st ${st[1]}">${st[0]}</span><small>${escapeHtml(p.school.short)}${escapeHtml(coxNm)}${p.pw ? ` · ${Math.round(p.pw)} W` : ""}${p.pid && NET.ranks.has(p.pid) ? ` · rated ${NET.ranks.get(p.pid).r}` : ""}${p.man ? " · every stroke" : ""}</small></div>`;
   }).join("") || `<div class="net-empty">Just you so far.</div>`;
   $("net-hostctl").hidden = !host;
   if (host) {
@@ -8338,13 +8627,13 @@ function netRenderRoom(force) {
     $("net-wind").value = o.wind; $("net-wind").disabled = forced;
     $("net-windnote").textContent = forced ? VENUES[o.venue].windNote || "" : "";
     $("net-inf").checked = !!o.inf;
-    $("net-fmt").value = String(NET.rg ? NET.rg.n : 0);
+    $("net-fmt").value = String(o.rgN || 0);
     const nm = document.getElementById("net-sname");
     if (nm && document.activeElement !== nm) { nm.value = netClean(o.srvName, 24); nm.placeholder = `${netName() || "Rower"}'s Regatta`; }
     const mx = document.getElementById("net-max"); if (mx) mx.value = String(netMaxCrews());
     const pv = document.getElementById("net-priv"); if (pv) pv.checked = !!o.priv;
   }
-  netRenderRegatta();
+  netRenderRegatta(); netRenderHf();
   const fillTxt = !c ? "" : c.fill === "none" ? "No GPS crews, just you lot" : `GPS crews (${(S.DIFFICULTIES.find((d) => d.id === c.fill) || S.DIFFICULTIES[1]).name}) fill the empty lanes`;
   const weather = !c ? "" : VENUES[c.ven].forceWind ? "a gale down the gorge" : windKindText(c.wk);
   $("net-summary").innerHTML = c ? `<b>${escapeHtml(VENUES[c.ven].name)} · ${c.d} m · ${escapeHtml(S.classById(c.cls).name)}</b><span>${escapeHtml(fillTxt)} · ${escapeHtml(weather)} · ${c.inf ? "infinite energy" : "normal tank"}</span>` : `<span>Waiting for the host…</span>`;
@@ -8356,6 +8645,8 @@ function netRenderRoom(force) {
   rb.classList.toggle("on", NET.ready);
   const why = host ? netCanStart() : "";
   sb.disabled = !!why;
+  const hfNow = host && netFmt() === "hf" ? NET.hf : undefined;
+  sb.textContent = hfNow === undefined ? "Start the race" : !hfNow || hfNow.st === "done" ? (hfNow ? "Make a new draw" : "Make the draw") : `Start ${(hfNow.races.find((r) => !r.res) || { label: "the race" }).label}`;
   const racing = players.filter((p) => p.rs === "race");
   $("net-state").textContent = host ? (why || "Everyone who's ready is in. Start when you like.")
     : c && c.st !== "room" && NET.me && !c.lanes.some((l) => l[0] === NET.me.peer) ? `A race is on (${racing.map((p) => p.name).join(", ")}). You'll be in the next one.`
@@ -8458,7 +8749,7 @@ function applySaved(data) {
     if (typeof so.srvName === "string") o.srvName = netClean(so.srvName, 24);
     if (typeof so.priv === "boolean") o.priv = so.priv;
     if (Number.isInteger(so.maxCrews) && so.maxCrews >= 2 && so.maxCrews <= 8) o.maxCrews = so.maxCrews;
-    if (NET_RG_SIZES.includes(so.rgN)) o.rgN = so.rgN;
+    if (NET_RG_SIZES.includes(so.rgN) || so.rgN === "hf") o.rgN = so.rgN;
   }
   if (data.netRec && typeof data.netRec === "object") for (const k of ["races", "wins"]) if (Number.isInteger(data.netRec[k]) && data.netRec[k] >= 0) G.netRec[k] = data.netRec[k];
   if (data.pbs && typeof data.pbs === "object") G.pbs = data.pbs;
