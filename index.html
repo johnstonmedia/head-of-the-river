@@ -1971,6 +1971,49 @@ function makeWaterNormals(size = 512) {
   return t;
 }
 
+// ---------------------------------------------------------------------------
+// Realism: the terrain's colours are set at its grid points, metres apart, so up close they're flat. These
+// shader patches add what a satellite photo shows at every pixel: dry and lush patches across a paddock,
+// mottling a few metres across, and grain, on whatever is grassy (rock, paths and roofs keep their colour).
+// Trees get the same treatment, so no two gums are quite the same green.
+// ---------------------------------------------------------------------------
+const RG_NOISE = `
+  float rgHash( vec2 p ) { p = fract( p * vec2( 0.1031, 0.1030 ) ); p += dot( p, p.yx + 33.33 ); return fract( ( p.x + p.y ) * p.x ); }
+  float rgNoise( vec2 p ) { vec2 i = floor( p ), f = fract( p ); vec2 u = f * f * ( 3.0 - 2.0 * f );
+    return mix( mix( rgHash( i ), rgHash( i + vec2( 1.0, 0.0 ) ), u.x ), mix( rgHash( i + vec2( 0.0, 1.0 ) ), rgHash( i + vec2( 1.0, 1.0 ) ), u.x ), u.y ); }
+  float rgFbm( vec2 p ) { float s = 0.0, a = 0.5; for ( int i = 0; i < 4; i++ ) { s += a * rgNoise( p ); p = p * 2.03 + 17.1; a *= 0.5; } return s / 0.9375; }
+`;
+function realGround(mat, strength = 1) {
+  const prev = mat.onBeforeCompile;
+  mat.onBeforeCompile = (sh, r) => {
+    if (prev) prev(sh, r);
+    sh.uniforms.rgK = { value: strength };
+    sh.vertexShader = "varying vec3 vRgWorld;\n" + sh.vertexShader.replace("#include <project_vertex>", `#include <project_vertex>
+      vRgWorld = ( modelMatrix * vec4( transformed, 1.0 ) ).xyz;`);
+    sh.fragmentShader = "varying vec3 vRgWorld;\nuniform float rgK;\n" + RG_NOISE + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
+      {
+        vec2 wp = vRgWorld.xz;
+        vec3 c = diffuseColor.rgb;
+        float grassy = smoothstep( 0.0, 0.05, c.g - max( c.r, c.b ) * 0.94 ) * rgK;
+        // fbm sits mostly in 0.3-0.7: stretch it so the patches actually show
+        float macro = smoothstep( 0.28, 0.72, rgFbm( wp / 230.0 ) ), patchy = smoothstep( 0.3, 0.7, rgFbm( wp / 75.0 + 13.0 ) ), meso = smoothstep( 0.3, 0.7, rgFbm( wp / 24.0 + 31.0 ) );
+        float fine = rgNoise( wp / 2.7 ) * 0.6 + rgNoise( wp / 0.85 + 7.0 ) * 0.4;
+        float lum = dot( c, vec3( 0.299, 0.587, 0.114 ) );
+        vec3 straw = vec3( lum * 1.28, lum * 1.12, lum * 0.62 );
+        vec3 lush = mix( vec3( lum ), c, 0.78 ) * vec3( 0.9, 1.0, 0.82 );                 // real grass is less green than paint
+        vec3 dark = lush * vec3( 0.62, 0.7, 0.6 );                                          // clover, wet hollows, long grass
+        float dryK = smoothstep( 0.38, 0.72, macro ) * 0.6 + smoothstep( 0.5, 0.8, patchy ) * 0.3;
+        vec3 g = mix( lush, straw, clamp( dryK, 0.0, 0.8 ) );
+        g = mix( g, dark, smoothstep( 0.55, 0.85, 1.0 - patchy ) * 0.55 );
+        g *= ( 0.74 + 0.46 * meso ) * ( 0.86 + 0.28 * fine );
+        vec3 other = c * ( 0.93 + 0.14 * meso ) * ( 0.95 + 0.1 * fine );
+        diffuseColor.rgb = mix( other, g, grassy );
+      }`);
+  };
+  mat.customProgramCacheKey = () => "realGround" + strength;
+  return mat;
+}
+
 function makeGrassDetail() {
   return canvasTex(256, 256, (ctx, w, h) => {
     const img = ctx.createImageData(w, h);
@@ -2232,7 +2275,7 @@ function buildRange(R, hq) {
   g.setAttribute("color", new THREE.BufferAttribute(col, 3));
   g.setIndex(idx.length > 65535 ? new THREE.Uint32BufferAttribute(idx, 1) : new THREE.Uint16BufferAttribute(idx, 1));
   g.computeVertexNormals();
-  return new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+  return new THREE.Mesh(g, realGround(new THREE.MeshLambertMaterial({ vertexColors: true }), 0.85));
 }
 
 // ---------------------------------------------------------------------------
@@ -2329,7 +2372,9 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
       .replace("vec3 outgoingLight = albedo;", `
         float crest = smoothstep( 0.42, 0.95, nA.x ) * smoothstep( -0.2, 0.7, nB.y );
         float foam = crest * smoothstep( 0.25, 1.0, chop ) * smoothstep( 420.0, 40.0, distance );
-        vec3 outgoingLight = mix( albedo, vec3( 0.82, 0.88, 0.9 ) * ( 0.55 + 0.45 * sunColor ), clamp( foam * 0.75, 0.0, 0.6 ) );`);
+        float wl = dot( albedo, vec3( 0.299, 0.587, 0.114 ) );
+        vec3 natural = mix( vec3( wl ), albedo, 0.68 ) * mix( vec3( 1.0 ), waterColor * 2.6, 0.18 );
+        vec3 outgoingLight = mix( natural, vec3( 0.82, 0.88, 0.9 ) * ( 0.55 + 0.45 * sunColor ), clamp( foam * 0.75, 0.0, 0.6 ) );`);
     if (patched.includes("uniform float chop;") && patched.includes("float foam")) water.material.fragmentShader = patched;
     water.material.uniforms.windDir = { value: new THREE.Vector2(1, 0) };
     water.material.uniforms.chop = { value: 0 };
@@ -2343,7 +2388,7 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
   // ---------------- terrain ----------------
   const grassTex = makeGrassDetail();
   grassTex.repeat.set(1, 1);
-  const groundMat = new THREE.MeshStandardMaterial({ vertexColors: true, map: grassTex, roughness: 0.96, metalness: 0 });
+  const groundMat = realGround(new THREE.MeshStandardMaterial({ vertexColors: true, map: grassTex, roughness: 0.96, metalness: 0 }));
   const TR = VEN.terrain;
   const nearX0 = TR.x0, nearX1 = TR.x1, nearZ0 = TR.z0, nearZ1 = TR.z1;
   // a fine grid along the course (the core) and a coarser one round it, out to the edge of the near terrain
@@ -2395,7 +2440,7 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     g.setIndex(idx); g.computeVertexNormals();
-    const mtn = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const mtn = new THREE.Mesh(g, realGround(new THREE.MeshLambertMaterial({ vertexColors: true }), 0.6));
     root.add(mtn);
   }
 
@@ -2430,7 +2475,18 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
         float amp = uSway * hgt * hgt;
         transformed.x += (sin(uTime * 1.7 + ph) * 0.6 + sin(uTime * 2.9 + ph * 1.3) * 0.4) * amp;
         transformed.z += sin(uTime * 1.3 + ph * 0.7) * amp * 0.6;
+        vTreeTint = vec3( fract( ph * 7.13 ), fract( ph * 3.71 + 0.3 ), hgt );
       `);
+      sh.vertexShader = "varying vec3 vTreeTint;\n" + sh.vertexShader;
+      sh.fragmentShader = "varying vec3 vTreeTint;\n" + sh.fragmentShader.replace("#include <color_fragment>", `#include <color_fragment>
+        {
+          // each tree a little different: lighter or darker, greener or greyer (gums), and sunlit higher up
+          float leafy = smoothstep( 0.0, 0.04, diffuseColor.g - diffuseColor.r );
+          vec3 tint = mix( vec3( 1.0 ), vec3( 0.92, 1.04, 0.86 ), vTreeTint.x ) * ( 0.82 + 0.34 * vTreeTint.y );
+          float lum = dot( diffuseColor.rgb, vec3( 0.3, 0.59, 0.11 ) );
+          vec3 grey = mix( diffuseColor.rgb, vec3( lum ) * vec3( 0.95, 1.0, 0.92 ), 0.25 * vTreeTint.x );
+          diffuseColor.rgb = mix( diffuseColor.rgb, grey * tint * ( 0.9 + 0.1 * clamp( vTreeTint.z * 0.12, 0.0, 1.5 ) ), leafy );
+        }`);
     };
     const variants = hq ? 5 : 3;
     const kinds = TV.kinds;
@@ -3101,7 +3157,7 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
     sun.color.set(p.sun); sun.intensity = p.sunI;
     hemi.color.set(p.sky); hemi.groundColor.set(p.ground); hemi.intensity = p.hemiI;
     scene.fog.color.set(VEN.fogTint ? tmpC.set(p.fog).lerp(C(VEN.fogTint), 0.35) : p.fog);
-    scene.fog.density = VEN.fogDensity ?? 0.0001;
+    scene.fog.density = (VEN.fogDensity ?? 0.0001) * 1.35;
     water.material.uniforms.sunDirection.value.copy(dir);
     water.material.uniforms.sunColor.value.set(p.sun).multiplyScalar(0.42);
     water.material.uniforms.distortionScale.value = 1.6 + (wind.rough || 0) * 7;
