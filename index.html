@@ -2598,8 +2598,8 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
     });
   }
 
-  // ---------------- buoys (Albano system) ----------------
-  {
+  // ---------------- buoys (Albano system; Henley has its booms instead) ----------------
+  if (!VEN.booms) {
     const geo = new THREE.IcosahedronGeometry(0.13, 0);
     const mat = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0 });
     const xsB = []; for (let x = -2000; x <= 0.1; x += 12.5) xsB.push(x);
@@ -2752,8 +2752,9 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
   {
     const g = new THREE.Group();
     const parts = [];
-    const NL = VEN.lanes || S.NUM_LANES;
+    const NL = VEN.lanes || S.NUM_LANES, raced = (l) => !VEN.raceLanes || VEN.raceLanes.includes(l);
     for (let l = 1; l <= NL; l++) {
+      if (!raced(l)) continue;
       const z = S.laneCenter(l);
       parts.push({ geo: box(2.2, 0.36, 2.6), m: M(-18.9, 0.1, z), c: C("#3d4447") });
       parts.push({ geo: box(1.6, 0.25, 0.45), m: M(-18.6, 0.4, z), c: C(["#2b5d8a", "#c94f2c", "#2b7a4b"][l % 3]) }); // boat holder lying flat
@@ -2782,6 +2783,7 @@ function buildWorld(renderer, scene, quality, venueId = "sirc") {
     });
     const nparts = [];
     for (let l = 1; l <= NL; l++) {
+      if (!raced(l)) continue;
       const i = l - 1, u0 = (i % 3) * 170 / 512, u1 = u0 + 170 / 512, v1 = 1 - Math.floor(i / 3) * 170 / 512, v0 = v1 - 170 / 512;
       for (const face of [1, -1]) {
         const pg = new THREE.PlaneGeometry(0.8, 0.8);
@@ -4530,6 +4532,275 @@ Object.assign(VENUES, {
       { x: -260, lines: "banks", ticker: "Both banks are going off!", minLeft: 60 },
     ],
     crowdLine: "Both banks are going off!",
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Henley-on-Thames: the Royal Regatta course. Two crews side by side between the booms (Berks station and
+// Bucks station), up the Thames from Temple Island, past Fawley and the enclosures, to the line by Phyllis
+// Court with Henley Bridge and St Mary's tower beyond. Berkshire (Remenham, the enclosures, the towpath,
+// the wooded hill) is −Z; Buckinghamshire (the meadows, Phyllis Court, the town) is +Z.
+// ---------------------------------------------------------------------------
+const HE = {
+  XN: 1300, XS: -3700,
+  BOOM_L: -21.5, BOOM_R: 8,          // the booms either side of the course (lanes 4 and 5)
+  ISL: { x: -2235, z: 52, rx: 115, rz: 24 },   // Temple Island, in the river behind the start
+  BRIDGE: 360,
+  bend(x) { return x > 420 ? 0.00045 * (x - 420) ** 2 : 0; },
+  zL(x) { return -40 - 3 * Math.sin(x / 310 + 1) - 2 * Math.sin(x / 97) + HE.bend(x); },
+  zR(x) { return 33 + 3 * Math.sin(x / 280 + 2) + 2 * Math.sin(x / 113 + 1) + HE.bend(x) + 78 * smoothstep(-2050, -2170, x) * (1 - smoothstep(-2380, -2460, x)); },
+};
+const henIslandSD = (x, z) => (Math.hypot((x - HE.ISL.x) / HE.ISL.rx, (z - HE.ISL.z) / HE.ISL.rz) - 1) * Math.min(HE.ISL.rx, HE.ISL.rz);
+function henWaterSD(x, z) { return Math.max(HE.zL(x) - z, z - HE.zR(x), x - HE.XN, HE.XS - x, -henIslandSD(x, z)); }
+const henHill = (x, z) => smoothstep(240, 900, -z - 40 + 140 * Math.sin(x / 700 + 0.6));                 // Remenham Hill and its woods
+const henEncl = (x, z) => (z < 0 ? smoothstep(-820, -760, x) * (1 - smoothstep(60, 110, x)) * (1 - smoothstep(110, 140, HE.zL(x) - z)) : 0);   // the enclosures
+const henTown = (x, z) => (z > 0 ? smoothstep(240, 330, x) * smoothstep(40, 80, z - HE.zR(x)) : 0) + (z < 0 ? smoothstep(330, 420, x) * smoothstep(40, 90, HE.zL(x) - z) * 0.7 : 0);
+function henLandHeight(x, z) {
+  const d = henWaterSD(x, z);
+  if (d < 0) return Math.max(-4, -0.4 + d * 0.5);
+  if (henIslandSD(x, z) < 0) return Math.min(0.9, -0.4 + d * 0.4);
+  let h = d < 2 ? lerp(-0.4, 0.5, d / 2) : 0.5 + 1.1 * smoothstep(2, 12, d);          // a low, grassy English bank
+  h += 1.2 * fbm(x * 0.004, z * 0.004, 2) * smoothstep(20, 200, d);
+  h += henHill(x, z) * (55 + 45 * fbm(x * 0.0016, z * 0.0016 + 3, 3));
+  h += smoothstep(1400, 4200, z) * 90 * fbm(x * 0.0009 + 2, z * 0.0009, 3);           // the Chilterns, far off
+  h += smoothstep(-2600, -6000, z) * 60 * fbm(x * 0.001, z * 0.001 + 7, 3);
+  return h;
+}
+function henGroundColor(x, z, h, d, out) {
+  if (d < 0.3) return out.set("#4a4637");
+  if (henIslandSD(x, z) < 0) return out.set("#5c9a3a").lerp(tmpC.set("#69a542"), vnoise(x * 0.1, z * 0.1) * 0.5);
+  if (d < 3) return out.set("#55613a").lerp(tmpC.set("#5e7d36"), d / 3);
+  if (z < 0 && d > 5 && d < 8.5 && x > -2300 && x < 300) return out.set("#9a917c").multiplyScalar(0.92 + 0.16 * vnoise(x * 0.4, z * 0.4));   // the towpath
+  if (henEncl(x, z) > 0.5) return out.set(Math.floor(x / 8) % 2 ? "#5d9a3a" : "#67a442");                   // mown enclosure lawns
+  const town = henTown(x, z);
+  out.set("#5c8c38").lerp(tmpC.set("#7a9a48"), fbm(x * 0.01, z * 0.01, 3));
+  // fields and their hedgerows
+  const fx = ((x % 170) + 170) % 170, fz = ((z % 130) + 130) % 130;
+  if (d > 60 && (fx < 4 || fz < 4)) out.lerp(tmpC.set("#3a5530"), 0.75);
+  else if (d > 60 && vnoise(Math.floor(x / 170) * 3.1, Math.floor(z / 130) * 2.3) > 0.62) out.lerp(tmpC.set("#a8a067"), 0.55);   // a hay meadow
+  if (town > 0) {
+    const road = (Math.abs(((x % 90) + 90) % 90 - 45) > 41) || (Math.abs(((z % 70) + 70) % 70 - 35) > 32);
+    out.lerp(tmpC.set(road ? "#77777a" : "#8b8a78"), Math.min(1, town) * (road ? 0.9 : 0.55));
+  }
+  const hill = henHill(x, z);
+  if (hill > 0.15) out.lerp(tmpC.set("#2f4a2a").lerp(tmpC.set("#3a5532"), vnoise(x * 0.01, z * 0.01)), smoothstep(0.15, 0.45, hill));
+  return out;
+}
+function henTreeNear(px, pz, d) {
+  if (d < 3) return -1;
+  if (Math.abs(px - HE.BRIDGE) < 26) return -1;
+  if (henIslandSD(px, pz) < 0) return henIslandSD(px, pz) < -6 && hashF(px, pz) > 0.7 ? 1 : -1;
+  if (henEncl(px, pz) > 0.3) return -1;
+  if (pz < 0 && d > 4 && d < 9.5) return -1;                                              // keep the towpath clear
+  if (d < 22) return fbm(px * 0.03, pz * 0.03, 2) > 0.38 ? 0 : -1;                       // willows along the water
+  if (henTown(px, pz) > 0.5) return hashF(px, pz) > 0.9 ? 1 : -1;
+  if (henHill(px, pz) > 0.3) return fbm(px * 0.01, pz * 0.01, 2) > 0.3 ? 1 : -1;
+  const fx = ((px % 170) + 170) % 170, fz = ((pz % 130) + 130) % 130;
+  if (fx < 5 || fz < 5) return hashF(px, pz) > 0.55 ? (hashF(pz, px) > 0.8 ? 2 : 1) : -1;   // hedgerow oaks, the odd poplar
+  return fbm(px * 0.008, pz * 0.008, 3) > 0.68 && hashF(px, pz) > 0.5 ? 1 : -1;
+}
+function henTreeFar(px, pz) {
+  if (henHill(px, pz) > 0.3) return fbm(px * 0.0018, pz * 0.0018, 3) > 0.32 ? 1 : -1;
+  return fbm(px * 0.0016, pz * 0.0016, 3) > 0.58 ? 1 : -1;
+}
+function henCanopy(x, z, d) {
+  if (d < 4 || d > 1200) return -1;
+  if (henEncl(x, z) > 0.3 || henTown(x, z) > 0.4 || henIslandSD(x, z) < 4) return -1;
+  if (henHill(x, z) > 0.35) return vnoise(x * 0.02, z * 0.02) > 0.2 ? 0 : -1;             // beech woods on the hill
+  return vnoise(x * 0.006 + 4, z * 0.006) > 0.7 && hashF(x, z) > 0.6 ? 1 : -1;
+}
+function henBuild(kit) {
+  const { add, solid, glass, box, cyl, gh, gable, pyramid, flagParts } = kit;
+  const zR = HE.zR, zL = HE.zL;
+  const site = { rects: [] };
+  // the booms: white timber booms on piles down both sides of the course, from Temple Island to the line
+  for (const bz of [HE.BOOM_L, HE.BOOM_R]) {
+    for (let x = -2110; x < 6; x += 10) {
+      add(solid, box(9.6, 0.32, 0.38), M(x + 5, 0.08, bz), "#f1efe6");
+      add(solid, cyl(0.17, 0.19, 2.2, 6), M(x, 0.35, bz), "#3b3a35");
+    }
+  }
+  // Temple Island: James Wyatt's 1771 folly, a white temple with a cupola, on its lawn
+  {
+    const { x, z } = HE.ISL, y = 0.9;
+    add(solid, box(9, 1.2, 9), M(x, y + 0.6, z), "#e9e5da");
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; add(solid, cyl(0.32, 0.36, 4.6, 8), M(x + Math.cos(a) * 3.3, y + 3.5, z + Math.sin(a) * 3.3), "#f4f1e8"); }
+    add(solid, cyl(4.0, 4.0, 0.8, 16), M(x, y + 6.2, z), "#ece8de");
+    add(solid, new THREE.SphereGeometry(3.2, 16, 8, 0, TAU, 0, Math.PI / 2), M(x, y + 6.6, z), "#dcd7ca");
+    add(solid, cyl(0.25, 0.4, 1.4, 8), M(x, y + 10.2, z), "#d6d0c2");
+    add(solid, box(16, 4.5, 8), M(x + 14, y + 2.25, z + 6), "#e2dccd");                        // the house behind it
+    add(solid, gable(16.8, 8.8, 2.2), M(x + 14, y + 4.5, z + 6), "#5f6266");
+  }
+  // Henley Bridge (1786): five stone arches, the balustraded road over them
+  {
+    const x = HE.BRIDGE, za = zL(x) - 22, zb = zR(x) + 22, zm = (za + zb) / 2, L = zb - za, dk = 7.5;
+    add(solid, box(11, 1.6, L), M(x, dk, zm), "#cbbd98");
+    for (const s of [-1, 1]) add(solid, box(0.6, 1.1, L), M(x + s * 5.2, dk + 1.3, zm), "#d6c9a6");
+    const spanZ0 = zL(x) - 4, spanZ1 = zR(x) + 4, n = 5, sw = (spanZ1 - spanZ0) / n;
+    for (let i = 0; i <= n; i++) {
+      const pz = spanZ0 + i * sw;
+      add(solid, box(10.5, dk, 3.4), M(x, dk / 2 - 0.4, pz), "#c4b48c");
+      add(solid, pyramid(3.4, 3, 3.4), M(x - 6.6, 1.4, pz), "#c4b48c");                           // cutwaters
+    }
+    for (let i = 0; i < n; i++) {
+      const cz = spanZ0 + (i + 0.5) * sw;                                                           // the spandrels over each arch
+      for (const s of [-1, 1]) add(solid, box(10.5, 1.8, sw * 0.32), M(x, dk - 1.6, cz + s * sw * 0.34), "#c9b991");
+    }
+    for (const zz of [za + 6, zb - 6]) add(solid, box(13, dk + 1, 12), M(x, (dk - 1) / 2, zz), "#bfae86");
+  }
+  // St Mary's (flint and stone chequerwork, 16th c.): the tower with its four corner turrets, above the bridge
+  {
+    const x = 455, z = zR(455) + 60, y = gh(x, z);
+    add(solid, box(9, 32, 9), M(x, y + 16, z), "#a7a08e");
+    for (let k = 0; k < 8; k++) add(solid, box(9.12, 1.0, 9.12), M(x, y + 3 + k * 3.8, z), "#cfc6ae");
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      add(solid, cyl(0.9, 1.0, 8, 8), M(x + sx * 4.1, y + 36, z + sz * 4.1), "#cfc6ae");
+      add(solid, pyramid(1.6, 2.6, 1.6), M(x + sx * 4.1, y + 41.3, z + sz * 4.1), "#8f8a7e");
+    }
+    add(solid, box(30, 9, 13), M(x + 22, y + 4.5, z), "#a29b88");                                 // the nave
+    add(solid, gable(31, 14, 5), M(x + 22, y + 9, z), "#5c5048");
+    site.rects.push([x - 8, x + 40, z - 10, z + 10]);
+  }
+  // Leander Club, in its pink, on the Berks bank by the bridge
+  {
+    const x = 300, z = zL(300) - 36, y = gh(x, z);
+    add(solid, box(30, 9, 14), M(x, y + 4.5, z), "#e7a7ad");
+    add(solid, gable(31, 15, 4), M(x, y + 9, z), "#5a3d3c");
+    for (let i = 0; i < 6; i++) add(glass, box(2.2, 2.4, 0.1), M(x - 12 + i * 4.8, y + 5.5, z + 7.06), "#2a3c46");
+    add(solid, cyl(0.07, 0.09, 10, 6), M(x - 18, y + 5, z + 6), "#dddddd");
+    flagParts.push({ x: x - 18, y: y + 9.4, z: z + 6, c1: "#e8a3ad", c2: "#e8a3ad" });
+    venuePontoon(kit, x, zL(x) + 6, 28, 3.6);
+    site.rects.push([x - 18, x + 18, z - 10, z + 10]);
+  }
+  // the boat tents behind the finish on the Berks bank
+  for (let i = 0; i < 4; i++) {
+    const x = 110 + i * 34, z = zL(x) - 30, y = gh(x, z);
+    add(solid, box(28, 4.2, 15), M(x, y + 2.1, z), "#f4f3ee");
+    add(solid, gable(29, 16, 3.2), M(x, y + 4.2, z), "#f8f8f4");
+    site.rects.push([x - 15, x + 15, z - 9, z + 9]);
+  }
+  // the Stewards' Enclosure: the long marquees, the grandstand facing the finish, the bandstand
+  {
+    const enc = (x0, x1, back) => {
+      for (let x = x0; x < x1; x += 46) {
+        const z = zL(x) - back, y = gh(x, z);
+        add(solid, box(40, 3.4, 12), M(x, y + 1.7, z), "#f6f5ef");
+        add(solid, gable(41, 13, 3.6), M(x, y + 3.4, z), (x / 46 | 0) % 2 ? "#f6f5ef" : "#2c5f3f");
+        site.rects.push([x - 21, x + 21, z - 7, z + 7]);
+      }
+    };
+    enc(-300, 40, 40);
+    enc(-760, -420, 44);                                                                            // the Regatta Enclosure, further down
+    // the grandstand on the Berks bank at the line
+    const gx = -30, gz = zL(gx) - 20, gy = gh(gx, gz);
+    for (let i = 0; i < 6; i++) add(solid, box(36, 0.5, 2), M(gx, gy + 0.6 + i * 0.75, gz - i * 1.6), "#2f5a3a");
+    add(solid, box(37, 0.3, 12), M(gx, gy + 8.2, gz - 4.5, 0.12, 0, 0), "#f2f2ee");
+    for (const sx of [-17, 0, 17]) add(solid, box(0.3, 8, 0.3), M(gx + sx, gy + 4, gz - 10), "#e6e6e2");
+    site.rects.push([gx - 19, gx + 19, gz - 12, gz + 3]);
+    // the bandstand
+    const bx = -150, bz = zL(bx) - 72, by = gh(bx, bz);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * TAU; add(solid, cyl(0.12, 0.12, 3, 6), M(bx + Math.cos(a) * 3.4, by + 1.6, bz + Math.sin(a) * 3.4), "#f2f2ee"); }
+    add(solid, cyl(4, 4, 0.5, 16), M(bx, by + 0.25, bz), "#e6e2d6");
+    add(solid, new THREE.ConeGeometry(4.4, 2.4, 16), M(bx, by + 4.3, bz), "#2c5f3f");
+    site.rects.push([bx - 6, bx + 6, bz - 6, bz + 6]);
+    for (let k = 0; k < 6; k++) { const fx = -260 + k * 55, fz = zL(fx) - 8; add(solid, cyl(0.06, 0.08, 8.5, 6), M(fx, gh(fx, fz) + 4.25, fz), "#dddddd"); flagParts.push({ x: fx, y: gh(fx, fz) + 7.6, z: fz, c1: k % 2 ? "#e8a3ad" : "#2c5f3f", c2: "#f4f4f2" }); }
+  }
+  // Phyllis Court on the Bucks bank at the finish: the white clubhouse and its covered stand
+  {
+    const x = -10, z = zR(x) + 58, y = gh(x, z);
+    add(solid, box(40, 11, 16), M(x, y + 5.5, z), "#efebe0");
+    add(solid, gable(41, 17, 4), M(x, y + 11, z), "#4a5560");
+    for (let i = 0; i < 8; i++) add(glass, box(2, 2.6, 0.1), M(x - 17 + i * 4.9, y + 6.8, z - 8.06), "#2a3c46");
+    const sz = zR(x) + 20;
+    for (let i = 0; i < 4; i++) add(solid, box(30, 0.5, 2), M(x + 6, gh(x, sz) + 0.6 + i * 0.7, sz + i * 1.5), "#f0f0ea");
+    add(solid, box(31, 0.3, 8), M(x + 6, gh(x, sz) + 6, sz + 2.5, -0.1, 0, 0), "#2c4a6a");
+    site.rects.push([x - 22, x + 22, z - 10, z + 10], [x - 10, x + 24, sz - 3, sz + 8]);
+  }
+  // the umpires' launches' landing stage and the judges' box at the line (Bucks side, on the boom)
+  {
+    const x = 2, z = HE.BOOM_R + 4;
+    for (const sx of [-1.4, 1.4]) for (const sz of [-1.2, 1.2]) add(solid, box(0.2, 3.2, 0.2), M(x + sx, 1.2, z + sz), "#3b3a35");
+    add(solid, box(3.4, 2.2, 3), M(x, 3.8, z), "#f2f0e8");
+    add(glass, box(3.5, 0.9, 3.1), M(x, 4.1, z), "#253f48");
+    add(solid, box(4, 0.25, 3.6), M(x, 5.0, z), "#2c5f3f");
+  }
+  venueFinishMasts(kit, HE.BOOM_R + 1.5, HE.BOOM_L - 1.5);
+  // Remenham church on the Berks bank, and the houses of Henley (and Remenham's few)
+  {
+    const x = -980, z = zL(x) - 160, y = gh(x, z);
+    add(solid, box(6, 16, 6), M(x, y + 8, z), "#9c9480");
+    add(solid, pyramid(6.4, 3, 6.4), M(x, y + 17.5, z), "#6a5d50");
+    add(solid, box(18, 7, 9), M(x + 12, y + 3.5, z), "#a29b88");
+    add(solid, gable(19, 10, 4), M(x + 12, y + 7, z), "#5c5048");
+    site.rects.push([x - 5, x + 24, z - 7, z + 7]);
+  }
+  {
+    const rr = S.rng(1839), list = [];
+    for (let x = 240; x < 1250; x += 22) for (let k = 0; k < 10; k++) {
+      const z = zR(x) + 70 + k * 30 + rr() * 6;
+      if (Math.abs(((x % 90) + 90) % 90 - 45) > 38 || rr() < 0.2) continue;
+      if (kit.hq === false && k % 2) continue;
+      list.push([x + (rr() - 0.5) * 4, z, (rr() - 0.5) * 0.1, 9 + rr() * 5, 9 + rr() * 3]);
+    }
+    for (let x = -1100; x < -880; x += 30) for (let k = 0; k < 3; k++) list.push([x + rr() * 8, zL(x) - 120 - k * 34 - rr() * 10, (rr() - 0.5) * 0.3, 11, 9]);
+    venueHouses(kit, list);
+  }
+  return site;
+}
+function henCrowd(rr, hq, site) {
+  const spots = [];
+  const blocked = (x, z) => inRects(site.rects, x, z) || (z < 0 && HE.zL(x) - z > 4 && HE.zL(x) - z < 9);
+  venueBankCrowd(spots, rr, hq ? 1500 : 760, -800, 60, HE.zL, -1, 90, blocked);      // the enclosures and the towpath
+  venueBankCrowd(spots, rr, hq ? 600 : 300, -160, 60, HE.zR, 1, 40, blocked);        // Phyllis Court
+  venueBankCrowd(spots, rr, hq ? 300 : 150, -1500, -900, HE.zL, -1, 14, blocked);     // the towpath at Fawley
+  return spots;
+}
+Object.assign(VENUES, {
+  henley: {
+    id: "henley", name: "Henley-on-Thames", short: "Henley", place: "Oxfordshire, UK", lanes: 8,
+    raceLanes: [4, 5], booms: true,           // two crews side by side, Berks and Bucks stations, between the booms
+    long: "Henley Royal Regatta · Henley-on-Thames", loading: "Floating the booms down the Thames…",
+    blurb: "The Royal Regatta course: two crews side by side between the booms, up from Temple Island past Fawley and the enclosures to the line by Phyllis Court.",
+    waterSD: henWaterSD, landHeight: henLandHeight, groundColor: henGroundColor,
+    waterColor: 0x34503a, fogDensity: 0.00012, fogTint: "#c9cfd0",
+    compass: { east: [0, -1], north: [-1, 0] },
+    terrain: { x0: -4400, x1: 2400, z0: -1200, z1: 1200, coreX: [-2760, 640], coreZ: [-260, 260], outer: [30, 40],
+      farX: [-16000, 16000], farZ: [-16000, 16000], farStep: 400, zSegs: [[-62, -32, 1.5], [26, 46, 1.5]] },
+    trees: {
+      kinds: [
+        { gen: willowGeometry, near: [15, 22], far: [14, 20] },
+        { gen: (s, l) => gumTreeGeometry(s, l, PAL_OAK), near: [14, 21], far: [13, 19] },
+        { gen: poplarGeometry, near: [20, 28], far: [18, 26] },
+      ],
+      box: [-3500, 1400, -1000, 1000], step: [13, 19], cap: [2600, 1200], farBox: [-14000, 14000, -14000, 14000], farCount: [4200, 1800],
+      near: henTreeNear, far: henTreeFar,
+    },
+    canopy: {
+      box: [-3800, 1700, -1150, 1150], step: [10, 14], test: henCanopy,
+      kinds: [
+        { cols: ["#2f4a2a", "#38532f", "#2a4226", "#41603a", "#33502d"], r: [4, 6.5], flat: 0.85, lift: 0.5 },
+        { cols: ["#4d6a3a", "#577442", "#465f35", "#5e7a46"], r: [3.5, 5.5], flat: 0.85, lift: 0.6 },
+      ],
+    },
+    build: henBuild, crowdSpots: henCrowd,
+    shrubBanks: [{ x0: -2300, x1: 300, z: HE.zR, dir: 1 }, { x0: -2300, x1: 300, z: HE.zL, dir: -1 }],
+    shrubBlocked: (x, z) => henEncl(x, z) > 0.3 || Math.abs(x - HE.BRIDGE) < 30 || (z < 0 && HE.zL(x) - z > 4 && HE.zL(x) - z < 9),
+    carParks: [[-1300, -1100, 150, 200]],
+    coachZ: (x) => HE.zL(x) - 6.8,             // the coaches cycle the towpath, as they do
+    boardZ: [-48, 40],
+    startTowerZ: (x) => HE.zR(x) + 9, hutZ: (x) => HE.zL(x) - 7,
+    tv: { z: (x) => HE.zL(x) - 4, y: 12 },
+    landmarks: () => [
+      { x: 0, t: "The finish", s: "The line by Phyllis Court, Henley Bridge and St Mary's tower just beyond.", dwell: 1.6 },
+      { x: -220, t: "The Stewards' Enclosure", s: "Blazers, boaters and the grandstand. Nobody here has ever been in a hurry, except you.", dwell: 2.6 },
+      { x: -1050, t: "Fawley", s: "Halfway, more or less, and the old timing point. The race is usually decided from here.", dwell: 1.4, minD: 1100 },
+      { x: -1990, t: "Temple Island", s: "The start, just above Wyatt's temple. Berks station on the left, Bucks on the right.", dwell: 1.6, minD: 1900 },
+    ],
+    calls: () => [
+      { x: -1050, lines: "fawley", ticker: "Fawley! Halfway up the course.", minD: 1100 },
+      { x: -320, lines: "enclosure", ticker: "Into the enclosures. Listen to them!", minLeft: 60 },
+    ],
+    crowdLine: "The enclosures are on their feet!",
   },
 });
 
@@ -7300,9 +7571,12 @@ function netWatchRace() {
 // ---------------------------------------------------------------------------
 // Starting a race
 // ---------------------------------------------------------------------------
+// the lanes a venue races, best first (Henley: just the two stations)
+function netLanes(ven) { const v = VENUES[ven]; return v && v.raceLanes ? NET_LANES.filter((l) => v.raceLanes.includes(l)) : NET_LANES; }
 function netCanStart() {
   if (!NET.meHost || !NET.me) return "Only the host can start the race.";
   if (NET.myCfg && NET.myCfg.st !== "room") return "A race is already under way.";
+  if (netFmt() === "hf" && VENUES[netOpts().venue].raceLanes) return "Henley is side by side, two crews a race: pick another course for heats & finals.";
   if (netFmt() === "hf" && NET.hf && NET.hf.st !== "done") {
     const nx = netHfNext();
     if (!nx) return NET.hf.st === "done" ? "" : "Waiting for the last race's result.";
@@ -7321,7 +7595,8 @@ function netStart() {
   audio.init();
   if (NET.rg && NET.rg.k >= NET.rg.n) NET.rg = netRgNew(NET.rg.n);
   const c0 = netRoomCfg(NET.myCfg);
-  const racers = NET.players.filter((p) => p.me || p.ready).sort((a, b) => (a.me ? -1 : b.me ? 1 : a.j - b.j)).slice(0, 8);
+  const laneOrder = netLanes(c0.ven);
+  const racers = NET.players.filter((p) => p.me || p.ready).sort((a, b) => (a.me ? -1 : b.me ? 1 : a.j - b.j)).slice(0, laneOrder.length);
   let plan = null;
   if (netFmt() === "hf") {
     if (!NET.hf || NET.hf.st === "done") {
@@ -7339,10 +7614,10 @@ function netStart() {
   const ven = VENUES[c0.ven];
   const w = makeWind(ven.forceWind ? pick(ven.forceWind, rand) : c0.wk, rand);
   const tod = pick(["morning", "midday", "afternoon", "afternoon", "golden"], rand);
-  const lanes = plan ? plan.lanes : racers.map((p, i) => [p.peer, NET_LANES[i]]);
+  const lanes = plan ? plan.lanes : racers.map((p, i) => [p.peer, laneOrder[i]]);
   const ai = plan ? plan.ai : [];
   if (!plan && c0.fill !== "none") {
-    const free = [1, 2, 3, 4, 5, 6, 7, 8].filter((l) => !lanes.some((x) => x[1] === l));
+    const free = laneOrder.filter((l) => !lanes.some((x) => x[1] === l)).sort((a, b) => a - b);
     const taken = new Set(racers.map((p) => p.school.id));
     const pool = [...shuffle(S.SCHOOLS.filter((s) => !taken.has(s.id)), rand), ...shuffle(S.SCHOOLS.filter((s) => taken.has(s.id)), rand)];
     free.forEach((l, i) => ai.push([l, pool[i % pool.length].id]));
@@ -8888,7 +9163,9 @@ function onResize() {
 // Menu demo fleet (crews paddling toward the finish behind the race card)
 // ---------------------------------------------------------------------------
 function makeDemo() {
-  const boats = S.SCHOOLS.map((sch, i) => {
+  const only = world && world.venue.raceLanes;          // Henley: just the two stations between the booms
+  const boats = S.SCHOOLS.filter((sch, i) => !only || only.includes(i + 1)).map((sch) => {
+    const i = S.SCHOOLS.indexOf(sch);
     const cls = curClass();
     const b = S.createBoat({ id: i + 1, lane: i + 1, school: sch, pRef: 1500 * cls.n / 8, distance: 900 + Math.random() * 30, startRate: 20, cls });
     b.rowing = true; b.started = true; b.rate = 20 + Math.random(); b.targetRate = 19.5 + Math.random() * 2; b.v = 3.2; b.phase = Math.random();
@@ -9084,7 +9361,7 @@ function createRace(net) {
   const school0 = S.SCHOOLS.find((s) => s.id === (me ? me.schoolId : st.schoolId)) || S.SCHOOLS[0];
   const mySchool = nc ? { ...school0, short: netName() || school0.short } : school0;      // online, everyone goes by their name
   const others = shuffle(S.SCHOOLS.filter((s) => s.id !== school0.id), rand);
-  const lanes = []; for (let l = 1; l <= S.NUM_CREWS; l++) lanes.push(l); // eight crews race in lanes 1–8
+  const lanes = []; for (let l = 1; l <= S.NUM_CREWS; l++) if (!world.venue.raceLanes || world.venue.raceLanes.includes(l)) lanes.push(l); // eight crews in lanes 1–8 (two at Henley)
   const playerLane = nc ? net.myLane : lanes[Math.floor(rand() * lanes.length)];
   const crew = (me ? me.crew : st.crew.slice(0, n)).map((id) => squad.all.find((r) => r.id === id));
   const crewPowers = crew.map((r) => S.rowerPower(r, rand));
@@ -9360,6 +9637,8 @@ const LINES = {
   dam: ["There's the dam, boys! Row us into it!", "See the dam? That's home! Build it now!", "Dam's in sight! Long and strong, then we go!"],
   domain: ["Hear the Domain? That's all for us! Lift!", "The whole Domain's watching, boys! Sharp catches!", "Past the Domain bank! Give them a show!"],
   flat: ["Hear that? That's Weeks Flat! Lift!", "Into the noise, boys! EVERYTHING!", "The whole flat's on its feet! Empty the tank!"],
+  fawley: ["Fawley, boys! Halfway! Push away now!", "That's Fawley! Take a stroke a side out of them!", "Past Fawley! This is where Henley's won!"],
+  enclosure: ["Here's the enclosure! Show the blazers what you've got!", "Stewards' are watching! Sharp and long!", "Into the enclosures! Everything you've got left!"],
   bridges: ["There's the Victoria Bridge! Row us to it!", "Bridges in sight, boys! Chase them down!", "See the bridges? That's the line! Build it!"],
   banks: ["Both banks are screaming for us! LIFT!", "Hear Tench Reserve? GO!", "The whole river's watching, boys! Empty it!"],
   low: ["Hold it together, stay long.", "Breathe. Clean catches.", "We're hurting. They're hurting more."],
@@ -11096,7 +11375,7 @@ function refreshMenu() {
   {
     const v = VENUES[st.venue] || VENUES.sirc;
     $("venue-desc").textContent = v.blurb;
-    $("mast-venue").textContent = `${v.short} · ${v.place} · ${v.lanes} lanes × ${S.LANE_W} m`;
+    $("mast-venue").textContent = `${v.short} · ${v.place} · ${v.raceLanes ? "two crews side by side, between the booms" : `${v.lanes} lanes × ${S.LANE_W} m`}`;
     $("venues").querySelectorAll("button").forEach((b) => { b.disabled = venueBusy; });
   }
   $("boat-desc").textContent = (S.BOATS.find((x) => x.id === st.boat) || S.BOATS[0]).desc;
