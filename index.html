@@ -422,6 +422,27 @@ body.is-touch .hud-bc { bottom: calc(276px + env(safe-area-inset-bottom, 0px)); 
 .net-off p { margin: 0; color: var(--muted); line-height: 1.5; }
 #net-ready.on { background: var(--go); color: #06210f; }
 #net-fill { max-width: 320px; }
+/* regattas, points series and chat */
+.net-lobby-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px 18px; align-items: start; }
+.net-lobby-main { display: grid; gap: 14px; min-width: 0; }
+.net-row .btn:disabled { opacity: .5; }
+.net-chatbox { min-width: 0; }
+.net-chat-log { height: 190px; overflow-y: auto; padding: 8px 10px; border: 1px solid var(--line); background: var(--raise); border-radius: 4px; display: grid; align-content: start; gap: 3px; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.net-chat-line b { color: #5CC8FF; font-weight: 700; }
+.net-chat-line.me b { color: var(--buoy); }
+.net-chat-line.sys { color: var(--muted); font-style: italic; }
+.net-chat-form { display: flex; gap: 6px; margin-top: 6px; }
+.net-chat-form .net-input { flex: 1; }
+table.net-rg { width: 100%; margin-top: 6px; }
+table.net-rg tr.me td { color: var(--buoy); }
+#race-chat { position: fixed; left: max(12px, env(safe-area-inset-left, 0px)); top: 36%; z-index: 30; width: min(360px, calc(100vw - 24px)); display: grid; gap: 6px; justify-items: start; pointer-events: none; }
+#race-chat > * { pointer-events: auto; }
+#race-chat .rc-log { width: 100%; box-sizing: border-box; max-height: 180px; overflow-y: auto; display: grid; gap: 2px; padding: 6px 9px; border-radius: 6px; background: rgba(8,14,22,.62); color: #fff; font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+#race-chat .rc-form { width: 100%; }
+#race-chat #rc-btn { padding: 5px 10px; font-size: 12px; background: rgba(8,14,22,.55); }
+#race-chat kbd { font: 600 10px var(--f-data); opacity: .7; margin-left: 4px; }
+body.is-touch #race-chat kbd { display: none; }
+@media (max-width: 640px) { .net-lobby-cols { grid-template-columns: 1fr; } }
 /* invite codes: friends without Claude */
 .net-codebox { font: 12px/1.45 var(--f-data); letter-spacing: .02em; resize: none; word-break: break-all; overflow-wrap: anywhere; min-height: 3.6em; }
 .net-codebox[readonly] { color: var(--buoy); }
@@ -866,6 +887,11 @@ kbd { font-family: var(--f-data); font-size: 12px; background: rgba(255,255,255,
     <div class="sheet-b" id="net-body"></div>
   </div>
 </div>
+<div id="race-chat" hidden>
+  <div class="rc-log" aria-live="polite"></div>
+  <form class="rc-form" hidden><input class="net-input" id="rc-in" maxlength="200" autocomplete="off" placeholder="Chat to the room · Enter to send, Esc to close" aria-label="Chat message"></form>
+  <button class="btn" id="rc-btn" type="button" title="Chat to the room (T)">Chat <kbd>T</kbd></button>
+</div>
 <div id="duel-seam" aria-hidden="true"></div>
 <div class="overlay" id="duel" hidden>
   <div class="sheet duel-sheet">
@@ -926,7 +952,7 @@ kbd { font-family: var(--f-data); font-size: 12px; background: rgba(255,255,255,
           <ul>
             <li><b>Venues:</b> pick the course on the race card: SIRC (nine lanes, the island grandstand, podium and 750 m bridge), Lake Karapiro (the Domain bank, with the dam past the finish), Lake Barrington (a narrow lake in a forested Tasmanian gorge, where a gale always blows: a hard cross-tail or cross-head that swings the splits and pushes you off your line) or the old Head of the River course on the Nepean, finishing by the Penrith bridges. The other three have eight lanes.</li>
             <li><b>Boat class</b> (race card): the eight, a coxed four, a single scull (no cox: you set the rate and steer yourself) or, at Lake Barrington only, the old coxed quad with big back arms on its riggers. Each class keeps its own crew. Edward McDonald and those back arms do not get on.</li>
-            <li><b>Online mode</b> (top of the boatshed) is separate from everything else: it has its own crew, cox, school and boat, its own win record, and the host's course never changes anyone's race card. You're only online while you're in it. Put your name in and pick Host a race: you get an invite code for each friend to send them (with the link to the game), and they send you back a reply code to paste in. That connects your browsers straight to each other, so your friends don't need a Claude account. If you're all signed in to Claude and the game's been shared with you, you can also create a race with a four-letter code, or join one from Open races. The host picks the venue, distance, boat class, conditions and whether GPS crews fill the empty lanes. Everyone races at once on the same course in the same weather; your clock starts at your own green light, so a slow connection never costs you, and a false start just means the starter goes again for you. Infinite energy is on for everyone unless the host turns it off. No coach bonuses, and online times don't count as PBs or win medals. Direct connections can fail on some work, school or public Wi-Fi; mobile data usually works.</li>
+            <li><b>Online mode</b> (top of the boatshed) is separate from everything else: it has its own crew, cox, school and boat, its own win record, and the host's course never changes anyone's race card. You're only online while you're in it. Opened from the game's website, Online mode has a lobby: create your own regatta (name it, choose the course, single races or a points series of 3, 5 or 7 races scored 10, 8, 6, 5, 4, 3, 2, 1, cap the entries, list it or keep it private with its code), or join one from Regattas on now. There's a lobby chat, a chat in each regatta, and on the water press T to talk. Or swap invite codes: put your name in and pick Host a race: you get an invite code for each friend to send them (with the link to the game), and they send you back a reply code to paste in. That connects your browsers straight to each other, so your friends don't need a Claude account. If you're all signed in to Claude and the game's been shared with you, you can also create a race with a four-letter code, or join one from Open races. The host picks the venue, distance, boat class, conditions and whether GPS crews fill the empty lanes. Everyone races at once on the same course in the same weather; your clock starts at your own green light, so a slow connection never costs you, and a false start just means the starter goes again for you. Infinite energy is on for everyone unless the host turns it off. No coach bonuses, and online times don't count as PBs or win medals. Direct connections can fail on some work, school or public Wi-Fi; mobile data usually works.</li>
             <li><b>Course preview:</b> before each race the camera flies from the finish line back to the start, past the venue's landmarks. <kbd>Space</kbd> or a click skips it.</li>
             <li><b>Start:</b> wait for the green light, then hit <kbd>Space</kbd>. Go early and you get a yellow card. Two and you're out.</li>
             <li><b>The slider:</b> the yellow marker is the blade. Hit <kbd>Space</kbd> as it reaches the <b>catch</b> (blade in) and again at the <b>finish</b> (blade out). The blades only go in when you hit the catch, so miss it (or don't press) and that whole stroke is lost. Clean timing means more run; a late finish can catch a crab.</li>
@@ -6669,6 +6695,8 @@ function directHub() {
     onInvites(cb) { inviteCb = cb; },
     invites() { return [...invites.values()].map((iv) => ({ id: iv.id, n: iv.n, code: iv.code, state: iv.state })); },
     guests() { return peers.size; },
+    // drop an invite nobody answered (a regatta guest who knocked and went quiet)
+    cancel(id) { const iv = invites.get(id); if (!iv || iv.label) return; clearTimeout(iv.timer); invites.delete(id); directClose(iv.pc); told(); },
     // a new invite code (each one is for one friend)
     async invite(hostName) {
       if (dead) throw new Error("This race room has closed.");
@@ -6812,6 +6840,89 @@ function directGuest(inv) {
 }
 
 // ============================================================================
+// REGATTAS — the game's own online lobby (/api/net, lib/netcore.js), for anyone who opens the game from its site.
+// It's the same kind of lobby as Claude's (presence(patch), onPeers, onConnection), polled every couple of
+// seconds, plus a lobby chat and a mailbox between browsers. Joining a regatta is the invite-code handshake done
+// for you: the guest knocks, the host's browser posts back an invite code, the guest's posts back its reply,
+// and from then on the race runs browser to browser through the host's hub, exactly as with pasted codes.
+// ============================================================================
+const SRV_API = "/api/net";
+function srvToken(n) { return Array.from(directRandom(n), (x) => "abcdefghijklmnopqrstuvwxyz0123456789"[x % 36]).join(""); }
+async function srvCall(body) {
+  const r = await fetch(SRV_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  let j = null;
+  try { j = await r.json(); } catch (e) { j = null; }
+  if (!r.ok || !j || !j.ok) { const code = (j && j.error) || "http"; throw Object.assign(new Error(code), { code, status: r.status }); }
+  return j;
+}
+// is there a lobby server behind this page?
+async function srvAvailable() {
+  if (!/^https?:$/.test(location.protocol)) return false;
+  try {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
+    const r = await fetch(SRV_API, { cache: "no-store", signal: ctl.signal });
+    clearTimeout(t);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!(j && j.ok && j.v === 1);
+  } catch (e) { return false; }
+}
+function srvLobby() {
+  let id = "c" + srvToken(11), key = srvToken(24);
+  let pres = Object.freeze({}), peers = Object.freeze([]), since = 0, timer = 0, busy = false, inLobby = false, conn = null, fails = 0;
+  const connL = new Set(), peerL = new Set(), chatL = new Set(), inboxL = new Set();
+  let readyRes; const ready = new Promise((res) => { readyRes = res; });
+  const fire = (set, x) => { for (const f of set) { try { f(x); } catch (e) { console.error(e); } } };
+  const setConn = (c) => { if (c === conn) return; conn = c; fire(connL, c); };
+  const want = () => pres.v != null;
+  // quick in the lobby, slower in a race room, slowest while racing (the race itself doesn't go through here)
+  const every = () => (G.race && G.race.online && G.state !== "results" && G.state !== "menu" ? 4000 : NET.game ? 2500 : 1500);
+  const later = (ms) => { clearTimeout(timer); timer = setTimeout(tick, ms); };
+  async function tick() {
+    timer = 0;
+    if (busy) { later(200); return; }
+    if (!want()) {
+      if (inLobby) { inLobby = false; srvCall({ op: "poll", id, key, pres: null }).catch(() => {}); }
+      return;
+    }
+    busy = true;
+    try {
+      const r = await srvCall({ op: "poll", id, key, pres, since });
+      fails = 0; inLobby = true; setConn(true); readyRes();
+      peers = Object.freeze((r.peers || []).map((p) => Object.freeze({ peer: p.peer, by: null, isMe: p.peer === id, sameTab: p.peer === id, kind: "viewer", guest: false, presence: Object.freeze(p.presence || {}) })));
+      fire(peerL, { peers });
+      const chat = Array.isArray(r.chat) ? r.chat : [];
+      if (chat.length) { since = Math.max(since, ...chat.map((m) => m.at || 0)); fire(chatL, chat); }
+      if (Array.isArray(r.inbox) && r.inbox.length) fire(inboxL, r.inbox);
+      if (r.taken) NET.codeTaken = true;
+    } catch (e) {
+      fails++;
+      if (e.code === "not_yours") { id = "c" + srvToken(11); key = srvToken(24); }     // somebody else has our name tag: take a new one
+      if (fails >= 2) setConn(false);
+    } finally { busy = false; }
+    if (want()) later(fails ? Math.min(15000, 1500 * 2 ** Math.min(fails, 4)) : every());
+  }
+  window.addEventListener("pagehide", () => {
+    if (!inLobby) return;
+    try { navigator.sendBeacon(SRV_API, JSON.stringify({ op: "poll", id, key, pres: null })); } catch (e) { /* gone anyway */ }
+  });
+  return {
+    server: true,
+    get me() { return id; },
+    ready,
+    presence(patch) { pres = directMerge(pres, patch); if (!busy) later(want() && inLobby ? 120 : 0); return Promise.resolve(); },
+    onConnection(cb) { connL.add(cb); if (conn != null) cb(conn); },
+    onPeers(cb) { peerL.add(cb); setTimeout(() => cb({ peers }), 0); },
+    onChat(cb) { chatL.add(cb); },
+    onInbox(cb) { inboxL.add(cb); },
+    poke() { if (!busy && want()) later(0); },
+    chat(tx, nm) { return srvCall({ op: "chat", id, key, tx, nm }); },
+    knock(code) { return srvCall({ op: "knock", id, key, code }); },
+    send(to, msg) { return srvCall({ op: "send", id, key, to, msg }); },
+  };
+}
+
+// ============================================================================
 // ONLINE — a mode of its own: race your friends
 // You go online only while you're in this mode. It has its own crew, cox, school and boat (separate from the
 // race card), its own record, and the host's choice of course never touches anyone's race card.
@@ -6842,8 +6953,14 @@ const NET = {
   lobby: [], view: "", msg: "", busy: false, sig: "", lobbySig: "",
   sendT: 0, resT: 0, resDirty: false, roomT: 0,
   rtc: typeof RTCPeerConnection === "function",   // this browser can connect straight to another
-  join: null,                      // joining someone's race with an invite code (until we're in)
+  join: null,                      // joining someone's race with an invite code, or a regatta (until we're in)
+  srv: false,                      // the lobby is this site's own server (srvLobby), not Claude's
+  pend: new Map(),                 // hosting a regatta: who's knocked → their invite, until they're in
+  chat: { lobby: [], room: [], seen: new Set(), mine: [], open: false },
+  rg: null,                        // hosting a points series: { n, k, t: peer → { nm, pts, w }, done: race ids tallied }
 };
+const NET_RG_SIZES = [0, 3, 5, 7];                    // races in a points series (0: single races)
+const NET_RG_PTS = [10, 8, 6, 5, 4, 3, 2, 1];         // series points by place
 const NET_NO_RTC = "This browser has direct connections switched off, so online races can't work in it. Solo races and the 1v1 split screen still do.";
 const netRound = (x, d) => { const k = 10 ** d; return Math.round(x * k) / k; };
 // the online settings (your online crew, and the course you'd host)
@@ -6894,10 +7011,15 @@ function netWind(w) { return { kind: w[0], tail: w[1], cross: w[2], gust: w[3], 
 async function netInit() {
   let room = null;
   try { if (window.claude && typeof window.claude.use === "function") room = await window.claude.use("room"); } catch (e) { room = null; }
+  if (!room && NET.rtc && await srvAvailable()) {
+    room = srvLobby(); NET.srv = true;
+    room.onChat(netLobbyChat);
+    room.onInbox(netInbox);
+  }
   if (!room) { NET.status = "off"; netRender(); return; }
   NET.room = room;
   room.onConnection((c) => { if (NET.status === "off") return; NET.status = c ? "on" : "connecting"; netRender(); }, netFatal);
-  room.onPeers((ch) => { NET.lobby = ch.peers; netRenderLobby(); }, netFatal);
+  room.onPeers((ch) => { NET.lobby = ch.peers; netRenderLobby(); netSrvSweep(); }, netFatal);
   netLobbyPresence();
   netRender();
 }
@@ -6915,7 +7037,11 @@ function netLobbyPresence() {
     return;
   }
   const c = NET.myCfg;
-  const h = NET.game && !NET.game.direct && NET.meHost && c ? { c: NET.code, ven: c.ven, d: c.d, cls: c.cls, n: NET.players.length || 1, st: c.st === "room" ? "open" : "racing" } : null;
+  const g = NET.game, o = netOpts();
+  const h = g && (!g.direct || g.auto) && NET.meHost && c ? {
+    c: NET.code, ven: c.ven, d: c.d, cls: c.cls, n: NET.players.length || 1, st: c.st === "room" ? "open" : "racing",
+    sn: netSrvName(), mx: g.auto ? netMaxCrews() : 8, pv: g.auto && o.priv ? 1 : null, rg: c.rg ? [c.rg.k, c.rg.n] : null,
+  } : null;
   const sig = JSON.stringify([netName(), h]);
   if (sig === NET.lobbySig) return;
   NET.lobbySig = sig;
@@ -6932,6 +7058,7 @@ async function netEnter(code, create) {
   if (!netName()) { netSay("Put your name in first so your friends know who's who."); const n = document.getElementById("net-name"); if (n) n.focus(); return; }
   code = String(code || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   if (!/^[a-z0-9]{3,8}$/.test(code)) { netSay("Race codes are four letters or numbers."); return; }
+  if (NET.room.server) { netSrvEnter(code, create); return; }
   NET.busy = true; netSay(create ? "Opening a race…" : "Joining…");
   await netLeave(true);
   let g = null;
@@ -6948,6 +7075,8 @@ async function netEnter(code, create) {
 // into a race room (a Claude one, or a direct one made with invite codes)
 function netAdopt(g, create, code) {
   NET.game = g; NET.code = code; NET.meHost = !!create; NET.created = !!create; NET.joinedAt = Date.now(); NET.ready = false; NET.rs = "room"; NET.ld = "";
+  netRoomReset();
+  if (create && netOpts().rgN) NET.rg = netRgNew(netOpts().rgN);
   NET.cfg = null; NET.myCfg = create ? netRoomCfg(null) : null; NET.lastRid = ""; NET.players = []; NET.me = null; NET.sig = "";
   g.onPeers(() => { if (NET.game === g) netGamePeers(); }, (e) => { if (NET.game === g) netGameLost(e); });
   if (g.onInvites) g.onInvites(() => { if (NET.game === g) netRenderInvites(); });
@@ -6962,6 +7091,7 @@ async function netLeave(quiet) {
   if (!g) return;
   if (G.race && G.race.online) netQuitRace(true);
   NET.game = null; NET.code = ""; NET.meHost = false; NET.players = []; NET.me = null; NET.cfg = null; NET.myCfg = null; NET.ready = false; NET.rs = "room";
+  netRoomReset();
   try { await g.leave(); } catch (e) { /* already gone */ }
   netLobbyPresence();
   if (!quiet) netRender();
@@ -6969,6 +7099,7 @@ async function netLeave(quiet) {
 function netGameLost(e) {
   const g = NET.game, who = g && g.direct === "guest" && g.hostName ? g.hostName : "The host";
   NET.game = null; NET.code = ""; NET.meHost = false; NET.players = []; NET.me = null; NET.cfg = null; NET.myCfg = null; NET.ready = false;
+  netRoomReset();
   netSay(e && e.code === "host_left" ? `${who} closed the race room.` : "Lost the connection to that race.");
   netLobbyPresence(); netRender();
 }
@@ -6976,7 +7107,7 @@ function netGameLost(e) {
 function netRoomCfg(prev) {
   const o = netOpts();
   const cls = classOK(S.classById(o.cls), o.venue) ? o.cls : "8+";
-  return { st: "room", rid: (prev && prev.rid) || "", ven: o.venue, d: o.dist, cls, fill: o.fill, ev: "1st", wk: o.wind, inf: o.inf ? 1 : 0 };
+  return { st: "room", rid: (prev && prev.rid) || "", ven: o.venue, d: o.dist, cls, fill: o.fill, ev: "1st", wk: o.wind, inf: o.inf ? 1 : 0, rg: NET.rg ? netRgOut() : null };
 }
 // what you tell the others in the race room
 function netGamePresence() {
@@ -6987,7 +7118,7 @@ function netGamePresence() {
     v: NET_V, nm: netName() || "Rower", j: NET.joinedAt, host: NET.meHost ? 1 : null, rdy: NET.ready ? 1 : null, rs: NET.rs, ld: NET.ld || null,
     sch: o.schoolId, boat: o.boat, cox: cls.cox ? o.coxIdx : null, crew,
     pw: Math.round(crew.reduce((s, id) => s + rowerWatts(rowerById(id)), 0)), man: o.manual ? 1 : null,
-    cfg: NET.meHost ? NET.myCfg : null,
+    cfg: NET.meHost ? NET.myCfg : null, ch: NET.chat.mine.length ? NET.chat.mine : null,
   }).catch(() => {});
 }
 // another player's presence, checked field by field (everything here comes from someone else's page)
@@ -7001,6 +7132,7 @@ function netPlayer(p) {
     school: S.SCHOOLS.find((s) => s.id === q.sch) || S.SCHOOLS[0], boat: S.BOATS.some((b) => b.id === q.boat) ? q.boat : "hudson",
     cox: Number.isInteger(q.cox) && q.cox >= 0 && q.cox < S.COXES.length ? q.cox : null, crew, pw: Number.isFinite(q.pw) ? clamp(q.pw, 0, 6000) : 0,
     man: q.man === 1, s: Array.isArray(q.s) ? q.s : null, a: Array.isArray(q.a) ? q.a : null, cfg: q.host === 1 ? netCfgOK(q.cfg) : null,
+    ch: netChatOK(q.ch),
   };
 }
 function netCfgOK(c) {
@@ -7011,7 +7143,7 @@ function netCfgOK(c) {
   if (![500, 1000, 1500, 2000].includes(c.d)) return null;
   const cls = S.BOAT_CLASSES.find((x) => x.id === c.cls);
   if (!cls || !classOK(cls, c.ven)) return null;
-  const out = { st: c.st, rid: c.rid, ven: c.ven, d: c.d, cls: c.cls, fill: NET_FILLS.includes(c.fill) ? c.fill : "none", ev: S.EVENTS.some((e) => e.id === c.ev) ? c.ev : "1st", wk: NET_WINDS.includes(c.wk) ? c.wk : "random", inf: c.inf === 1 ? 1 : 0 };
+  const out = { st: c.st, rid: c.rid, ven: c.ven, d: c.d, cls: c.cls, fill: NET_FILLS.includes(c.fill) ? c.fill : "none", ev: S.EVENTS.some((e) => e.id === c.ev) ? c.ev : "1st", wk: NET_WINDS.includes(c.wk) ? c.wk : "random", inf: c.inf === 1 ? 1 : 0, rg: netRgOK(c.rg) };
   if (c.st === "room") return out;
   if (!c.rid || !Number.isInteger(c.seed) || c.seed < 0) return null;
   const w = c.w;
@@ -7036,6 +7168,7 @@ function netGamePeers() {
   const g = NET.game; if (!g) return;
   const list = [];
   for (const p of g.peers()) { if (p.kind !== "viewer") continue; const pl = netPlayer(p); if (pl) list.push(pl); }
+  netRoomChatIn(list);
   NET.players = list;
   NET.me = list.find((p) => p.me) || null;
   // the host is whoever claims it and joined first; if nobody does (the host left), the first to have joined takes
@@ -7090,6 +7223,7 @@ function netCanStart() {
 function netStart() {
   if (netCanStart()) return;
   audio.init();
+  if (NET.rg && NET.rg.k >= NET.rg.n) NET.rg = netRgNew(NET.rg.n);
   const c0 = netRoomCfg(NET.myCfg);
   const racers = NET.players.filter((p) => p.me || p.ready).sort((a, b) => (a.me ? -1 : b.me ? 1 : a.j - b.j)).slice(0, 8);
   const seed = (Math.random() * 4294967296) >>> 0;
@@ -7319,6 +7453,7 @@ function netBackToRoom(stayOnline = true) {
     for (const b of R.boats) if (b.ai && !b.finished && !b.dsq) { b.finished = true; b.finishTime = R.t + (-b.x) / Math.max(1, b.vAvg || b.v); }
     netSend(R);
   }
+  if (R && R.online) netRgTally(R, true);
   netQuitRace(true);
   enterMenu();
   if (stayOnline) netOpen(); else netExit();
@@ -7333,9 +7468,317 @@ function netResults(R) {
   $("res-title").textContent = P.dsq ? "Excluded" : pPlace === 1 ? "Winners!" : `${ordinal(pPlace)} place`;
   const left = R.boats.filter((b) => !b.finished && !b.dsq).length;
   if (allDone && !R.recorded) { R.recorded = true; G.netRec.races++; if (pPlace === 1) G.netRec.wins++; saveStore(); }
-  const rm = $("res-medals"), rec = G.netRec;
-  rm.innerHTML = `<span class="medal-ic"></span>${left ? `${left} crew${left > 1 ? "s" : ""} still racing… · ` : ""}Online record: ${rec.wins} win${rec.wins === 1 ? "" : "s"} from ${rec.races} race${rec.races === 1 ? "" : "s"}`;
+  netRgTally(R, false);
+  const rm = $("res-medals"), rec = G.netRec, rg = NET.cfg && NET.cfg.rg;
+  const rgTxt = rg ? ` · Series: race ${clamp(rg.k, 1, rg.n)} of ${rg.n}${rg.t.length ? `, ${escapeHtml(rg.t[0][1])} leads on ${rg.t[0][2]} pts` : ""}` : "";
+  rm.innerHTML = `<span class="medal-ic"></span>${left ? `${left} crew${left > 1 ? "s" : ""} still racing… · ` : ""}Online record: ${rec.wins} win${rec.wins === 1 ? "" : "s"} from ${rec.races} race${rec.races === 1 ? "" : "s"}${rgTxt}`;
   rm.hidden = false;
+}
+
+// ---------------------------------------------------------------------------
+// Servers: race rooms listed in this site's lobby (srvLobby). Joining one is the invite-code handshake, done for you
+// ---------------------------------------------------------------------------
+function netSrvName() { return netClean(netOpts().srvName, 24) || `${netName() || "Rower"}'s Regatta`; }
+function netMaxCrews() { return clamp(netOpts().maxCrews | 0 || 8, 2, 8); }
+// a room's own odds and ends, cleared whenever you go into (or out of) one
+function netRoomReset() {
+  NET.pend.clear(); NET.rg = null; NET.codeTaken = false;
+  NET.chat.room = []; NET.chat.mine = []; NET.chat.seen.clear(); NET.chat.known = null;
+  netRenderChat();
+}
+async function netSrvEnter(code, create) {
+  if (!NET.rtc) { netSay(NET_NO_RTC); return; }
+  if (NET.busy) return;
+  await netLeave(true);
+  if (create) {
+    let g;
+    try { g = directHub(); } catch (e) { netSay(NET_NO_RTC); return; }
+    g.auto = true;
+    netAdopt(g, true, code);
+    netSay("");
+    return;
+  }
+  const J = { auto: true, state: "knock", code, host: "", hostId: "", sn: "", g: null, timer: 0 };
+  NET.join = J; netSay(""); netRender();
+  let r;
+  try { await NET.room.ready; r = await NET.room.knock(code); }
+  catch (e) {
+    if (NET.join === J) netSrvJoinFail(e.code === "no_server" ? `There's no regatta with the code ${code.toUpperCase()} right now. Check it, or pick one from the list.` : "Couldn't reach the lobby. Try again in a moment.");
+    return;
+  }
+  if (NET.join !== J) return;
+  J.state = "wait"; J.host = netClean(r.nm) || "The host"; J.hostId = r.host; J.sn = netClean(r.sn, 24);
+  J.timer = setTimeout(() => { if (NET.join === J && J.state === "wait") netSrvJoinFail(`${J.host} didn't answer. They may have just left, so try again.`); }, 45000);
+  netRender();
+}
+function netSrvJoinFail(msg) {
+  const J = NET.join;
+  if (J) { clearTimeout(J.timer); if (J.g) J.g.cancel(); }
+  NET.join = null;
+  netSay(msg); netRender();
+}
+// messages from other browsers, through the lobby
+function netInbox(msgs) {
+  for (const m of msgs) {
+    if (!m || typeof m !== "object" || typeof m.from !== "string") continue;
+    const g = NET.game, J = NET.join;
+    if (g && g.auto && g.direct === "host") {
+      if (m.t === "knock") netSrvKnock(g, m);
+      else if (m.t === "reply") netSrvReply(g, m);
+    } else if (J && J.auto && m.from === J.hostId) {
+      if (m.t === "invite" && J.state === "wait" && typeof m.code === "string") netSrvInvited(J, m.code);
+      else if (m.t === "full") netSrvJoinFail(`${J.sn || J.host + "'s regatta"} is full.`);
+    } else if (m.t === "knock") NET.room.send(m.from, { t: "full" }).catch(() => {});      // we're not hosting any more
+  }
+}
+// someone wants in: make them an invite (one per guest), and post it to them
+async function netSrvKnock(g, m) {
+  netSrvSweep();
+  if (NET.pend.has(m.from)) return;
+  const waiting = g.invites().filter((iv) => iv.state !== "failed").length;
+  if (1 + g.guests() + waiting >= netMaxCrews()) { NET.room.send(m.from, { t: "full" }).catch(() => {}); return; }
+  const p = { id: null, at: Date.now() };
+  NET.pend.set(m.from, p);
+  let code = null;
+  try { code = await g.invite(netName()); } catch (e) { code = null; }
+  if (NET.game !== g || !code) { NET.pend.delete(m.from); if (NET.game === g) NET.room.send(m.from, { t: "full" }).catch(() => {}); return; }
+  const u = directUnpack(code, "I");
+  if (u.o) p.id = u.o.id;
+  NET.room.send(m.from, { t: "invite", code }).catch(() => { if (p.id) g.cancel(p.id); NET.pend.delete(m.from); });
+}
+async function netSrvReply(g, m) {
+  const p = NET.pend.get(m.from);
+  if (!p || typeof m.code !== "string") return;
+  p.at = Date.now();
+  try { await g.accept(m.code); } catch (e) { if (p.id) g.cancel(p.id); NET.pend.delete(m.from); }
+}
+// invites nobody answered (or that connected long ago) are let go
+function netSrvSweep() {
+  const g = NET.game; if (!g || !g.auto || g.direct !== "host") return;
+  const now = Date.now();
+  for (const [from, p] of NET.pend) {
+    if (now - p.at < 45000) continue;
+    const iv = p.id && g.invites().find((x) => x.id === p.id);
+    if (iv && iv.state === "waiting") g.cancel(p.id);
+    NET.pend.delete(from);
+  }
+  if (NET.codeTaken && NET.meHost) { NET.codeTaken = false; NET.code = netNewCode(4); netLobbyPresence(); netRenderRoom(true); }
+}
+// the host's invite came back: answer it, and we're in once the browsers find each other
+async function netSrvInvited(J, code) {
+  clearTimeout(J.timer);
+  const r = directUnpack(code, "I");
+  if (r.err) { netSrvJoinFail("That regatta sent a broken invite. Try again."); return; }
+  let j;
+  try { j = directGuest(r.o); } catch (e) { netSrvJoinFail(NET_NO_RTC); return; }
+  J.g = j; J.state = "connect"; netRender();
+  let reply;
+  try { reply = await j.reply(); }
+  catch (e) { if (NET.join === J) netSrvJoinFail("Couldn't connect: this browser or network won't make direct connections."); else j.cancel(); return; }
+  if (NET.join !== J) { j.cancel(); return; }
+  try { await NET.room.send(J.hostId, { t: "reply", code: reply }); }
+  catch (e) { if (NET.join === J) netSrvJoinFail(`${J.host} has left.`); return; }
+  J.timer = setTimeout(() => { if (NET.join === J) j.cancel(); }, 30000);
+  try { await j.ready; }
+  catch (e) {
+    if (NET.join !== J) return;
+    netSrvJoinFail(e.code === "full" ? `${J.sn || J.host + "'s regatta"} is full.` : e.code === "host_left" ? `${J.host} closed the regatta.`
+      : `Couldn't connect to ${J.host}'s browser. Direct connections can fail on some work, school or public Wi-Fi: mobile data usually works.`);
+    return;
+  }
+  clearTimeout(J.timer);
+  if (NET.join !== J || !NET.active) { j.room.leave(); return; }
+  NET.join = null;
+  j.room.auto = true; j.room.sn = J.sn; j.room.hostName = J.host;
+  netAdopt(j.room, false, J.code);
+  netSay(`You're in ${J.sn || J.host + "'s regatta"}.`);
+  netRender();
+}
+
+// ---------------------------------------------------------------------------
+// Points series: several races in one regatta, points by place (the host keeps the table and shows it to everyone)
+// ---------------------------------------------------------------------------
+function netRgNew(n) { return { n, k: 0, t: new Map(), done: new Set() }; }
+function netRgOut() {
+  const rg = NET.rg;
+  const t = [...rg.t].map(([peer, e]) => [peer, e.nm, e.pts, e.w]).sort((a, b) => (b[2] - a[2]) || (b[3] - a[3]) || (a[1] < b[1] ? -1 : 1)).slice(0, 16);
+  return { n: rg.n, k: rg.k, t };
+}
+function netRgOK(rg) {
+  if (!rg || typeof rg !== "object" || !NET_RG_SIZES.includes(rg.n) || !rg.n || !Number.isInteger(rg.k) || rg.k < 0 || rg.k > rg.n || !Array.isArray(rg.t)) return null;
+  const t = [];
+  for (const r of rg.t.slice(0, 16)) {
+    if (!Array.isArray(r) || typeof r[0] !== "string" || r[0].length > 80 || !Number.isFinite(r[2]) || !Number.isInteger(r[3])) continue;
+    t.push([r[0], netClean(r[1]) || "Rower", clamp(Math.round(r[2]), 0, 999), clamp(r[3], 0, 99)]);
+  }
+  return { n: rg.n, k: rg.k, t };
+}
+// the host scores a race once every human crew is home (or as they go back to the room, whatever's happened)
+function netRgTally(R, force) {
+  const rg = NET.rg;
+  if (!NET.meHost || !rg || !R.online || rg.done.has(R.online.rid) || rg.k >= rg.n || !NET.me) return;
+  const humans = R.boats.filter((b) => b === R.player || (b.remote && b.remote.kind === "human"));
+  if (!force && !humans.every((b) => b.finished || b.dsq)) return;
+  if (!R.started) return;
+  rg.done.add(R.online.rid); rg.k++;
+  const order = standings(R);
+  for (const b of humans) {
+    const peer = b === R.player ? NET.me.peer : b.remote.peer;
+    const pl = NET.players.find((p) => p.peer === peer);
+    const place = order.indexOf(b) + 1, pts = b.dsq ? 0 : NET_RG_PTS[place - 1] || 0;
+    const e = rg.t.get(peer) || { nm: "", pts: 0, w: 0 };
+    e.nm = b === R.player ? netName() || "Rower" : pl ? pl.name : e.nm || b.school.short;
+    e.pts += pts; if (place === 1 && !b.dsq) e.w++;
+    rg.t.set(peer, e);
+  }
+  if (NET.myCfg) { NET.myCfg = { ...NET.myCfg, rg: netRgOut() }; NET.cfg = NET.myCfg; }
+  netGamePresence(); netLobbyPresence();
+  const top = netRgOut().t[0];
+  if (top) netChatSys(rg.k >= rg.n ? `Series over: ${top[1]} wins it on ${top[2]} points!` : `Series: race ${rg.k} of ${rg.n} done. ${top[1]} leads on ${top[2]} points.`, true);
+}
+function netRenderRegatta() {
+  const box = document.getElementById("net-rgtab"); if (!box) return;
+  const rg = NET.cfg && NET.cfg.rg;
+  box.hidden = !rg;
+  if (!rg) return;
+  const over = rg.k >= rg.n;
+  const head = over && rg.t.length ? `Series over · ${escapeHtml(rg.t[0][1])} wins` : `Points series · ${rg.k ? `${rg.k} of ${rg.n} races done` : `${rg.n} races`}`;
+  box.innerHTML = `<span class="eyebrow">${head}</span>` + (rg.t.length
+    ? `<table class="res net-rg"><thead><tr><th>Pl</th><th>Crew</th><th>Pts</th><th>Wins</th></tr></thead><tbody>${rg.t.map((r, i) => `<tr${NET.me && r[0] === NET.me.peer ? ' class="me"' : ""}><td>${i + 1}</td><td>${escapeHtml(r[1])}</td><td class="num">${r[2]}</td><td class="num">${r[3]}</td></tr>`).join("")}</tbody></table>`
+    : `<div class="net-empty">No races yet. Points go ${NET_RG_PTS.join(", ")} by place (GPS crews take places but score nothing).</div>`)
+    + (over ? `<div class="hint">${NET.meHost ? "Start a race to begin a new series." : "The host can start a new one."}</div>` : "");
+}
+
+// ---------------------------------------------------------------------------
+// Chat: the lobby's goes through the server; a room's goes round with everyone's presence (so it works in any room)
+// ---------------------------------------------------------------------------
+const NET_CHAT_KEEP = 100;
+function netChatOK(ch) {
+  if (!Array.isArray(ch)) return [];
+  const out = [];
+  for (const m of ch.slice(-10)) {
+    if (!Array.isArray(m) || typeof m[0] !== "string" || !/^[a-z0-9]{4,12}$/.test(m[0]) || !Number.isFinite(m[1])) continue;
+    const tx = netClean(m[2], 200);
+    if (tx) out.push([m[0], m[1], tx]);
+  }
+  return out;
+}
+function netChatAdd(chan, line) {
+  const L = NET.chat[chan];
+  L.push(line);
+  if (L.length > NET_CHAT_KEEP) L.splice(0, L.length - NET_CHAT_KEEP);
+  if (chan === "room" && !line.me) netRaceChatShow();
+  netRenderChat();
+}
+function netChatSys(tx, room = true) { netChatAdd(room ? "room" : "lobby", { at: Date.now(), nm: "", tx, sys: true }); }
+function netLobbyChat(lines) {
+  for (const m of lines) {
+    if (!m || typeof m.id !== "string" || NET.chat.seen.has("l" + m.id)) continue;
+    NET.chat.seen.add("l" + m.id);
+    const tx = netClean(m.tx, 200); if (!tx) continue;
+    NET.chat.lobby.push({ at: m.at, nm: netClean(m.nm) || "Rower", tx, me: NET.room && m.from === NET.room.me });
+  }
+  if (NET.chat.lobby.length > NET_CHAT_KEEP) NET.chat.lobby.splice(0, NET.chat.lobby.length - NET_CHAT_KEEP);
+  netRenderChat();
+}
+// new lines in the others' presence, and who's come and gone
+function netRoomChatIn(list) {
+  const known = NET.chat.known;
+  const now = new Map(list.map((p) => [p.peer, p.name]));
+  if (known && Date.now() - NET.joinedAt > 3000) {
+    for (const [peer, nm] of now) if (!known.has(peer) && !list.find((p) => p.peer === peer).me) netChatSys(`${nm} joined.`);
+    for (const [peer, nm] of known) if (!now.has(peer)) netChatSys(`${nm} left.`);
+  }
+  NET.chat.known = now;
+  for (const p of list) {
+    if (p.me) continue;
+    for (const [id, at, tx] of p.ch) {
+      const k = p.peer + ":" + id;
+      if (NET.chat.seen.has(k)) continue;
+      NET.chat.seen.add(k);
+      netChatAdd("room", { at, nm: p.name, tx });
+    }
+  }
+}
+async function netChatSend(tx) {
+  tx = netClean(tx, 200);
+  if (!tx) return false;
+  if (NET.game) {
+    const id = srvToken(8);
+    NET.chat.mine.push([id, Date.now(), tx]);
+    if (NET.chat.mine.length > 8) NET.chat.mine.splice(0, NET.chat.mine.length - 8);
+    netChatAdd("room", { at: Date.now(), nm: netName() || "You", tx, me: true });
+    netGamePresence();
+    return true;
+  }
+  if (NET.room && NET.room.server) {
+    try { await NET.room.chat(tx, netName()); NET.room.poke(); return true; }
+    catch (e) { netSay(e.code === "slow_down" ? "Slow down a little." : e.code === "not_in_lobby" ? "Still connecting to the lobby…" : "That didn't send. Try again."); return false; }
+  }
+  return false;
+}
+function netChatLines(chan, n) {
+  return NET.chat[chan].slice(-n).map((m) => m.sys ? `<div class="net-chat-line sys">${escapeHtml(m.tx)}</div>`
+    : `<div class="net-chat-line${m.me ? " me" : ""}"><b>${escapeHtml(m.nm)}</b> ${escapeHtml(m.tx)}</div>`).join("");
+}
+const NET_CHAT_HTML = (title, hint) => `
+  <div class="field net-chatbox"><span class="eyebrow">${title}</span>
+    <div class="net-chat-log" id="net-chatlog" aria-live="polite"></div>
+    <form class="net-chat-form" id="net-chatform"><input class="net-input" id="net-chatin" maxlength="200" autocomplete="off" placeholder="${hint}" aria-label="Chat message"><button class="btn" type="submit">Send</button></form>
+  </div>`;
+function netWireChat() {
+  const f = document.getElementById("net-chatform"); if (!f) return;
+  f.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const inp = $("net-chatin"), tx = inp.value;
+    if (!netClean(tx, 200)) return;
+    if (!netName()) { netNeedName(); return; }
+    inp.value = "";
+    if (!(await netChatSend(tx)) && !inp.value) inp.value = tx;
+  });
+  netRenderChat();
+}
+function netRenderChat() {
+  const log = document.getElementById("net-chatlog");
+  if (log) {
+    const chan = NET.game ? "room" : "lobby";
+    const html = netChatLines(chan, 60) || `<div class="net-empty">${NET.game ? "Nothing said in this room yet." : "Nobody's said anything yet. Say hello."}</div>`;
+    if (log.dataset.h !== html) {
+      const atEnd = log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+      log.innerHTML = html; log.dataset.h = html;
+      if (atEnd || !log.dataset.seen) { log.scrollTop = log.scrollHeight; log.dataset.seen = "1"; }
+    }
+  }
+  netRaceChatRender();
+}
+// on the water: the room's chat in the corner (T to talk)
+function netRaceChatOn() { return !!(G.race && G.race.online && NET.game && G.state !== "menu"); }
+function netRaceChatShow() { NET.chat.showUntil = performance.now() + 10000; netRaceChatRender(); }
+function netRaceChatRender() {
+  const box = document.getElementById("race-chat"); if (!box) return;
+  const on = netRaceChatOn();
+  box.hidden = !on;
+  if (!on) { NET.chat.open = false; return; }
+  const open = NET.chat.open, fresh = open || performance.now() < (NET.chat.showUntil || 0);
+  box.classList.toggle("open", open);
+  const log = box.querySelector(".rc-log");
+  log.hidden = !fresh || !NET.chat.room.length;
+  const html = netChatLines("room", open ? 12 : 4);
+  if (log.dataset.h !== html) { log.innerHTML = html; log.dataset.h = html; log.scrollTop = log.scrollHeight; }
+  box.querySelector(".rc-form").hidden = !open;
+}
+function netRaceChatOpen() {
+  if (!netRaceChatOn()) return;
+  NET.chat.open = true; netRaceChatRender();
+  const inp = $("rc-in"); setTimeout(() => inp.focus(), 0);
+}
+function netRaceChatClose() { NET.chat.open = false; NET.chat.showUntil = performance.now() + 4000; const inp = $("rc-in"); inp.blur(); netRaceChatRender(); }
+function netWireRaceChat() {
+  const box = $("race-chat"), inp = $("rc-in");
+  $("rc-btn").addEventListener("click", (e) => { e.currentTarget.blur(); if (NET.chat.open) netRaceChatClose(); else netRaceChatOpen(); });
+  box.querySelector(".rc-form").addEventListener("submit", (e) => { e.preventDefault(); const tx = inp.value; inp.value = ""; netChatSend(tx); netRaceChatClose(); });
+  inp.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); inp.value = ""; netRaceChatClose(); } });
+  setInterval(() => { if (!NET.chat.open) netRaceChatRender(); }, 500);
 }
 
 // ---------------------------------------------------------------------------
@@ -7420,6 +7863,7 @@ function netJoinRestart(msg) {
 }
 function netJoinCancel() {
   const J = NET.join; NET.join = null;
+  if (J) clearTimeout(J.timer);
   if (J && J.g) J.g.cancel();
   netSay(""); netRender();
 }
@@ -7466,6 +7910,11 @@ function netRenderInvites() {
 // the join steps: paste, reply, wait
 function netRenderJoin() {
   const J = NET.join;
+  if (J && J.auto && NET.view === "joining") {
+    $("net-jname").textContent = J.sn || (J.host ? `${J.host}'s Regatta` : J.code.toUpperCase());
+    $("net-jstate").textContent = { knock: "Finding the regatta…", wait: `Asking ${J.host} to let you in…`, connect: `Connecting to ${J.host}'s browser…` }[J.state] || "";
+    return;
+  }
   if (!J || NET.view !== "join") return;
   const inp = $("net-inv-in"), mk = $("net-mkreply"), replying = J.state === "reply";
   inp.disabled = J.state !== "paste"; mk.disabled = J.state !== "paste";
@@ -7498,7 +7947,7 @@ function netOpen() {
 function netExit() {
   $("online").hidden = true;
   NET.active = false;
-  if (NET.join) { const J = NET.join; NET.join = null; if (J.g) J.g.cancel(); }
+  if (NET.join) { const J = NET.join; NET.join = null; clearTimeout(J.timer); if (J.g) J.g.cancel(); }
   netLeave(true);
   netLobbyPresence();
   if (world && world.venue.id !== G.settings.venue) switchVenue(G.settings.venue);
@@ -7506,7 +7955,7 @@ function netExit() {
 function netRender() {
   const ov = $("online"); if (!ov || ov.hidden) return;
   // with no Claude lobby here (a public link, signed out, or still looking), it's invite codes
-  const view = NET.game ? "room" : NET.join ? "join" : NET.room ? "lobby" : "codes";
+  const view = NET.game ? "room" : NET.join ? (NET.join.auto ? "joining" : "join") : NET.room ? "lobby" : "codes";
   const st = NET.game && NET.game.direct ? "on" : NET.join ? "connecting" : NET.status;
   const dot = $("net-dot");
   dot.className = "net-dot " + st;
@@ -7514,7 +7963,8 @@ function netRender() {
   if (view !== NET.view) { NET.view = view; NET.sig = ""; netBuild(view); }
   if (view === "lobby") netRenderLobby();
   if (view === "room") { netRenderRoom(); netRenderInvites(); }
-  if (view === "join") netRenderJoin();
+  if (view === "join" || view === "joining") netRenderJoin();
+  netRenderChat();
 }
 const NET_SWATCH = { hudson: "linear-gradient(90deg,#16191c,#4a5056)", empacher: "#F2C12E", filippi: "linear-gradient(90deg,#009246 33%,#f4f4f2 33% 66%,#CE2B37 66%)", shoreassoc: "linear-gradient(90deg,#b9ab84,#8f8466)" };
 // your online crew: school, crew, cox, boat (Online mode's own, separate from the race card)
@@ -7571,7 +8021,8 @@ function netCrewPanel() {
 }
 function netBuild(view) {
   const body = $("net-body");
-  $("net-title").textContent = view === "room" ? "Race room" : view === "join" ? "Join a race" : "Online";
+  const srv = !!(NET.room && NET.room.server);
+  $("net-title").textContent = view === "room" ? (NET.game && NET.game.auto ? "Regatta" : "Race room") : view === "join" ? "Join a race" : view === "joining" ? "Joining" : "Online";
   const rec = G.netRec;
   const about = `<div class="hint">Online is its own mode: this crew, cox and boat are just for online races, and your race card stays as it is. Everyone races at once on the same course in the same weather, and your clock starts at your own green light, so a slow connection never costs you. Infinite energy is on unless the host turns it off, there are no coach bonuses, and boats can crash into each other (the umpire won't exclude you for leaving your lane). Online record: ${rec.wins} win${rec.wins === 1 ? "" : "s"} from ${rec.races} race${rec.races === 1 ? "" : "s"}.</div>`;
   const nameField = `<div class="field"><label class="eyebrow" for="net-name">Your name</label><input class="net-input" id="net-name" maxlength="16" autocomplete="nickname" placeholder="The name your friends see"></div>`;
@@ -7628,6 +8079,52 @@ function netBuild(view) {
     setTimeout(() => { const i = document.getElementById("net-inv-in"); if (i && !i.disabled) i.focus(); }, 0);
     return;
   }
+  if (view === "joining") {
+    body.innerHTML = `
+      <div class="net-steps">
+        <div><span class="eyebrow">Joining</span><b class="net-hostline" id="net-jname"></b></div>
+        <div class="hint" id="net-jstate" aria-live="polite"></div>
+        <div class="net-msg" id="net-msg" aria-live="polite"></div>
+        <div class="go-row"><button class="btn" id="net-jback" type="button">Cancel</button></div>
+      </div>`;
+    $("net-jback").addEventListener("click", netJoinCancel);
+    $("net-msg").textContent = NET.msg;
+    return;
+  }
+  if (view === "lobby" && srv) {
+    body.innerHTML = `
+      ${nameField}
+      ${NET_CREW_HTML}
+      <div class="net-actions">
+        <button class="btn-go" id="net-create" type="button">Create a regatta</button>
+        <div class="net-join"><input class="net-input code" id="net-code" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="CODE" aria-label="Regatta code"><button class="btn" id="net-join" type="button">Join</button></div>
+      </div>
+      <div class="net-msg" id="net-msg" aria-live="polite"></div>
+      <div class="net-lobby-cols">
+        <div class="net-lobby-main">
+          <div class="field"><span class="eyebrow">Regattas on now</span><div class="net-list" id="net-open"></div></div>
+          <div class="hint" id="net-who"></div>
+        </div>
+        ${NET_CHAT_HTML("Lobby chat", "Say something to everyone online…")}
+      </div>
+      <div class="hint">Create a regatta and you run it: name it, pick the course, race single races or a points series (several races, scored 10, 8, 6… by place), cap the entries, and list it here or keep it private (code only). Crews join from the list or with the code. The races run straight between your browsers, through the host's, so keep the page open while you host.</div>
+      ${NET.rtc ? `<div class="net-direct">
+        <span class="eyebrow">Invite codes</span>
+        <div class="hint">For a friend who can't reach this lobby (on another copy of the game, say), swap invite codes by text instead.</div>
+        <div class="net-actions"><button class="btn" id="net-dhost" type="button">Host with invite codes</button><button class="btn" id="net-djoin" type="button">Join with an invite code</button></div>
+      </div>` : ""}
+      ${about}`;
+    wireName();
+    $("net-create").addEventListener("click", () => netEnter(netNewCode(4), true));
+    const code = $("net-code");
+    code.addEventListener("keydown", (e) => { if (e.key === "Enter") netEnter(code.value, false); });
+    $("net-join").addEventListener("click", () => netEnter(code.value, false));
+    const pickSrv = (e) => { const b = e.target.closest("[data-code]"); if (b) netEnter(b.dataset.code, false); };
+    $("net-open").addEventListener("click", pickSrv);
+    wireDirect(); netWireCrew(); netWireChat();
+    $("net-msg").textContent = NET.msg;
+    return;
+  }
   if (view === "lobby") {
     body.innerHTML = `
       ${nameField}
@@ -7658,7 +8155,12 @@ function netBuild(view) {
   }
   // the race room
   const g = NET.game, kind = g && g.direct;
-  const head = kind === "host" ? `
+  const head = g && g.auto ? `
+    <div class="net-code-row">
+      <div><span class="eyebrow" id="net-srv-name"></span><b class="net-bigcode" id="net-room-code"></b></div>
+      <div class="hint" id="net-srv-hint"></div>
+    </div>`
+    : kind === "host" ? `
     <div class="net-direct net-invites">
       <div class="net-inv-head"><div><span class="eyebrow">Invite friends</span><div class="hint">One code per friend: send it with the link to this game. They go to Online mode, pick Join with an invite code, and send you back a reply code to paste below. Keep this page open, as everyone's connected through your browser.</div></div><button class="btn" id="net-inv-new" type="button">New invite code</button></div>
       <div class="net-list" id="net-invs"></div>
@@ -7691,8 +8193,18 @@ function netBuild(view) {
         <div class="field"><label class="eyebrow" for="net-wind">Conditions</label><select id="net-wind"></select><div class="hint" id="net-windnote"></div></div>
       </div>
       <div class="field"><span class="eyebrow">Energy</span><div class="toggles"><label for="net-inf"><input type="checkbox" id="net-inf"> Infinite energy for everyone (no rate limit)</label></div></div>
+      <div class="row2">
+        <div class="field"><label class="eyebrow" for="net-fmt">Format</label><select id="net-fmt">${NET_RG_SIZES.map((n) => `<option value="${n}">${n ? `Points series: ${n} races` : "Single races"}</option>`).join("")}</select><div class="hint">Series points by place: ${NET_RG_PTS.join(", ")}. Changing the format starts the table again.</div></div>
+        ${g && g.auto ? `<div class="field"><label class="eyebrow" for="net-sname">Regatta name</label><input class="net-input" id="net-sname" maxlength="24" autocomplete="off"></div>` : ""}
+      </div>
+      ${g && g.auto ? `<div class="row2">
+        <div class="field"><label class="eyebrow" for="net-max">Crews allowed in</label><select id="net-max">${[2, 3, 4, 5, 6, 7, 8].map((n) => `<option value="${n}">${n} crews</option>`).join("")}</select></div>
+        <div class="field"><span class="eyebrow">Listing</span><div class="toggles"><label for="net-priv"><input type="checkbox" id="net-priv"> Private: not listed, join with the code only</label></div></div>
+      </div>` : ""}
     </div>
     <div class="net-summary" id="net-summary"></div>
+    <div class="field" id="net-rgtab" hidden></div>
+    ${NET_CHAT_HTML("Room chat", "Say something to the room… (T to talk while racing)")}
     ${NET_CREW_HTML}
     <div class="go-row">
       <button class="btn-go" id="net-ready" type="button">I'm ready</button>
@@ -7704,7 +8216,7 @@ function netBuild(view) {
   $("net-ready").addEventListener("click", () => { audio.init(); NET.ready = !NET.ready; netGamePresence(); netRenderRoom(true); });
   $("net-start").addEventListener("click", netStart);
   $("net-leave").addEventListener("click", () => netLeave());
-  if (kind === "host") {
+  if (kind === "host" && !g.auto) {
     $("net-inv-new").addEventListener("click", () => { audio.init(); netSay(""); netInvite(); });
     $("net-accept").addEventListener("click", netAcceptReply);
     $("net-reply-in").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); netAcceptReply(); } });
@@ -7745,13 +8257,25 @@ function netBuild(view) {
   wd.innerHTML = NET_WINDS.map((k) => `<option value="${k}">${escapeHtml(cap1(windKindText(k)))}</option>`).join("");
   wd.addEventListener("change", () => { o.wind = NET_WINDS.includes(wd.value) ? wd.value : "random"; netHostChanged(); });
   $("net-inf").addEventListener("change", (e) => { o.inf = e.target.checked; netHostChanged(); });
-  netWireCrew();
+  $("net-fmt").addEventListener("change", (e) => {
+    const n = parseInt(e.target.value, 10);
+    o.rgN = NET_RG_SIZES.includes(n) ? n : 0;
+    if (NET.meHost) { NET.rg = o.rgN ? netRgNew(o.rgN) : null; if (o.rgN) netChatSys(`New points series: ${o.rgN} races.`); }
+    netHostChanged();
+  });
+  if (g && g.auto) {
+    $("net-sname").addEventListener("input", (e) => { o.srvName = netClean(e.target.value, 24); saveStore(); netLobbyPresence(); netRenderRoom(true); });
+    $("net-max").addEventListener("change", (e) => { o.maxCrews = clamp(parseInt(e.target.value, 10) || 8, 2, 8); netHostChanged(); netLobbyPresence(); });
+    $("net-priv").addEventListener("change", (e) => { o.priv = e.target.checked; netHostChanged(); netLobbyPresence(); });
+  }
+  netWireCrew(); netWireChat();
   $("net-msg").textContent = NET.msg;
 }
 // the host changed a setting: save it and tell the room (nothing moves until the race loads)
 function netHostChanged() {
   saveStore();
   if (NET.meHost && NET.myCfg && NET.myCfg.st === "room") { NET.myCfg = netRoomCfg(NET.myCfg); NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); }
+  else if (NET.meHost && NET.myCfg) { NET.myCfg = { ...NET.myCfg, rg: NET.rg ? netRgOut() : null }; NET.cfg = NET.myCfg; netGamePresence(); netLobbyPresence(); }
   netCrewPanel();
   netRenderRoom(true);
 }
@@ -7767,19 +8291,23 @@ function netRenderLobby() {
     const h = q.h;
     if (!h || typeof h !== "object" || typeof h.c !== "string" || !/^[a-z0-9]{3,8}$/.test(h.c)) continue;
     const ven = Object.hasOwn(VENUES, h.ven) ? VENUES[h.ven] : null, cls = S.BOAT_CLASSES.find((c) => c.id === h.cls);
-    races.push({ code: h.c, host: nm, ven: ven ? ven.name : "", d: [500, 1000, 1500, 2000].includes(h.d) ? h.d : null, cls: cls ? cls.name : "", n: Number.isInteger(h.n) ? clamp(h.n, 1, 8) : 1, racing: h.st === "racing" });
+    const mx = Number.isInteger(h.mx) ? clamp(h.mx, 2, 8) : 8, n = Number.isInteger(h.n) ? clamp(h.n, 1, 8) : 1;
+    const rg = Array.isArray(h.rg) && Number.isInteger(h.rg[0]) && NET_RG_SIZES.includes(h.rg[1]) && h.rg[1] ? [clamp(h.rg[0], 0, h.rg[1]), h.rg[1]] : null;
+    races.push({ code: h.c, host: nm, sn: netClean(h.sn, 24), ven: ven ? ven.name : "", d: [500, 1000, 1500, 2000].includes(h.d) ? h.d : null, cls: cls ? cls.name : "", n, mx, full: n >= mx, racing: h.st === "racing", rg });
   }
-  const list = $("net-open");
-  if (list) {
-    const sig = JSON.stringify(races);
-    if (sig !== list.dataset.sig) {
-      list.dataset.sig = sig;
-      list.innerHTML = races.length ? races.map((r) => `<div class="net-row"><span class="net-ic">${escapeHtml(r.code.toUpperCase())}</span><b>${escapeHtml(r.host)}'s race</b><button class="btn" type="button" data-code="${escapeHtml(r.code)}">${r.racing ? "Join (racing)" : "Join"}</button><small>${[r.ven, r.d ? `${r.d} m` : "", r.cls, `${r.n} crew${r.n > 1 ? "s" : ""}`].filter(Boolean).map(escapeHtml).join(" · ")}</small></div>`).join("")
-        : `<div class="net-empty">No open races yet. Create one and send your friends the code.</div>`;
-    }
-  }
+  const row = (r) => `<div class="net-row"><span class="net-ic">${escapeHtml(r.code.toUpperCase())}</span><b>${escapeHtml(r.sn || `${r.host}'s race`)}${r.sn ? ` <small>· ${escapeHtml(r.host)}</small>` : ""}</b>`
+    + `<button class="btn" type="button" data-code="${escapeHtml(r.code)}"${r.full ? " disabled" : ""}>${r.full ? "Full" : r.racing ? "Join (racing)" : "Join"}</button>`
+    + `<small>${[r.rg ? `Series ${r.rg[0]}/${r.rg[1]} races` : "", r.ven, r.d ? `${r.d} m` : "", r.cls, NET.srv ? `${r.n}/${r.mx} crews` : `${r.n} crew${r.n > 1 ? "s" : ""}`].filter(Boolean).map(escapeHtml).join(" · ")}</small></div>`;
+  const fill = (el, items, empty) => {
+    if (!el) return;
+    const sig = JSON.stringify(items);
+    if (sig === el.dataset.sig) return;
+    el.dataset.sig = sig;
+    el.innerHTML = items.length ? items.map(row).join("") : `<div class="net-empty">${empty}</div>`;
+  };
+  fill($("net-open"), races, NET.srv ? "No regattas on right now. Create one and crews can join from here." : "No open races yet. Create one and send your friends the code.");
   const w = $("net-who");
-  if (w) w.textContent = who.length ? `In Online mode now: ${who.slice(0, 8).join(", ")}${who.length > 8 ? ` and ${who.length - 8} more` : ""}` : "Nobody else is in Online mode right now.";
+  if (w) w.textContent = who.length ? `In Online mode now: ${who.slice(0, 12).join(", ")}${who.length > 12 ? ` and ${who.length - 12} more` : ""}` : "Nobody else is in Online mode right now.";
 }
 function netRenderRoom(force) {
   if ($("online").hidden || NET.view !== "room" || !NET.game) return;
@@ -7789,6 +8317,12 @@ function netRenderRoom(force) {
   if (!force && sig === NET.sig) return;
   NET.sig = sig;
   const rc = document.getElementById("net-room-code"); if (rc) rc.textContent = NET.code.toUpperCase();
+  const g = NET.game, sn = document.getElementById("net-srv-name");
+  if (sn) {
+    sn.textContent = host ? netSrvName() : g.sn || `${g.hostName || "The host"}'s Regatta`;
+    $("net-srv-hint").textContent = host ? (o.priv ? "Private: friends join with this code (Join, on the Online page). Keep this page open: everyone's connected through your browser." : "Listed in the lobby: crews join from Regattas on now, or with this code. Keep this page open: everyone's connected through your browser.")
+      : `You're connected through ${g.hostName || "the host"}'s browser. If they leave, the regatta closes.`;
+  }
   $("net-players").innerHTML = players.map((p) => {
     const st = p.rs === "race" ? ["Racing", "race"] : p.host ? ["Host", "ok"] : p.ready ? ["Ready", "ok"] : ["Not ready", ""];
     const coxNm = p.cox != null && cls.cox ? ` · cox ${S.COXES[p.cox].name}` : "";
@@ -7804,7 +8338,13 @@ function netRenderRoom(force) {
     $("net-wind").value = o.wind; $("net-wind").disabled = forced;
     $("net-windnote").textContent = forced ? VENUES[o.venue].windNote || "" : "";
     $("net-inf").checked = !!o.inf;
+    $("net-fmt").value = String(NET.rg ? NET.rg.n : 0);
+    const nm = document.getElementById("net-sname");
+    if (nm && document.activeElement !== nm) { nm.value = netClean(o.srvName, 24); nm.placeholder = `${netName() || "Rower"}'s Regatta`; }
+    const mx = document.getElementById("net-max"); if (mx) mx.value = String(netMaxCrews());
+    const pv = document.getElementById("net-priv"); if (pv) pv.checked = !!o.priv;
   }
+  netRenderRegatta();
   const fillTxt = !c ? "" : c.fill === "none" ? "No GPS crews, just you lot" : `GPS crews (${(S.DIFFICULTIES.find((d) => d.id === c.fill) || S.DIFFICULTIES[1]).name}) fill the empty lanes`;
   const weather = !c ? "" : VENUES[c.ven].forceWind ? "a gale down the gorge" : windKindText(c.wk);
   $("net-summary").innerHTML = c ? `<b>${escapeHtml(VENUES[c.ven].name)} · ${c.d} m · ${escapeHtml(S.classById(c.cls).name)}</b><span>${escapeHtml(fillTxt)} · ${escapeHtml(weather)} · ${c.inf ? "infinite energy" : "normal tank"}</span>` : `<span>Waiting for the host…</span>`;
@@ -7838,7 +8378,8 @@ const G = {
     duel: { names: ["Player 1", "Player 2"], schools: ["kings", "riverview"], boats: ["hudson", "hudson"], dist: 1000, wind: "random", tod: "random", manual: false, infinite: false },
     sound: true, coxVoice: true, guide: true, hq: !isTouch, manual: false, infinite: false,
     // Online mode's own settings (g_online.js): your online crew, and the course you'd host. The race card's are untouched.
-    online: { name: "", schoolId: "kings", boat: "hudson", coxIdx: 0, crewPick: "1", manual: false, rand: {}, venue: "sirc", dist: 1000, cls: "8+", fill: "club", wind: "random", inf: true },
+    online: { name: "", schoolId: "kings", boat: "hudson", coxIdx: 0, crewPick: "1", manual: false, rand: {}, venue: "sirc", dist: 1000, cls: "8+", fill: "club", wind: "random", inf: true,
+      srvName: "", priv: false, maxCrews: 8, rgN: 0 },
   },
   pbs: {}, seenHelp: false,
   netRec: { races: 0, wins: 0 },     // online record (online races don't touch medals or PBs)
@@ -7914,6 +8455,10 @@ function applySaved(data) {
     if (NET_FILLS.includes(so.fill)) o.fill = so.fill;
     if (NET_WINDS.includes(so.wind)) o.wind = so.wind;
     if (typeof so.inf === "boolean") o.inf = so.inf;
+    if (typeof so.srvName === "string") o.srvName = netClean(so.srvName, 24);
+    if (typeof so.priv === "boolean") o.priv = so.priv;
+    if (Number.isInteger(so.maxCrews) && so.maxCrews >= 2 && so.maxCrews <= 8) o.maxCrews = so.maxCrews;
+    if (NET_RG_SIZES.includes(so.rgN)) o.rgN = so.rgN;
   }
   if (data.netRec && typeof data.netRec === "object") for (const k of ["races", "wins"]) if (Number.isInteger(data.netRec[k]) && data.netRec[k] >= 0) G.netRec[k] = data.netRec[k];
   if (data.pbs && typeof data.pbs === "object") G.pbs = data.pbs;
@@ -9906,6 +10451,7 @@ function setupInput() {
       case "PageDown": e.preventDefault(); if (!G.paused) rateStep(-5); break;
       case "KeyC": if (!e.repeat) cycleCam(); break;
       case "KeyP": case "Escape": if (!e.repeat) togglePause(); break;
+      case "KeyT": if (!e.repeat && netRaceChatOn()) { e.preventDefault(); netRaceChatOpen(); } break;
       case "KeyM": if (!e.repeat) { audio.setMuted(!audio.muted); ticker(audio.muted ? "Sound muted" : "Sound on"); } break;
     }
   });
@@ -9964,6 +10510,7 @@ function setupInput() {
   $("btn-again").addEventListener("click", (e) => { e.currentTarget.blur(); if (G.lastMode === "online") netBackToRoom(); else if (G.lastMode === "duel") launchDuel(); else launchRace(); });
   $("btn-shed").addEventListener("click", () => { if (G.lastMode === "online") { netBackToRoom(false); return; } const duel = G.lastMode === "duel"; enterMenu(); if (duel) openDuel("draft"); });
   $("btn-online").addEventListener("click", (e) => { e.currentTarget.blur(); audio.init(); netOpen(); });
+  netWireRaceChat();
   $("net-close").addEventListener("click", netExit);
   $("btn-help").addEventListener("click", () => { $("help").hidden = false; });
   $("btn-help-close").addEventListener("click", closeHelp);

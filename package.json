@@ -1,0 +1,11 @@
+{
+  "name": "head-of-the-river",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server/dev.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
