@@ -2,6 +2,11 @@
 
 A 3D rowing race game set at the Sydney International Regatta Centre. The game is a single self-contained `index.html` (three.js loaded from jsDelivr), deployed on Vercel.
 
+## Venues and modes
+
+- Venues: SIRC Penrith, Lake Karapiro, Lake Barrington, the Nepean River, and Henley-on-Thames (two crews side by side between the booms, as at the Royal Regatta).
+- **Erg**: a Concept2 piece (500 m to 5k) for any rower in the squad, with his real 2k test as the pace boat.
+
 ## Online
 
 Online mode has a lobby served by `api/net.js` (a Vercel Function; the logic is in `lib/netcore.js`):

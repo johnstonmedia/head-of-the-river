@@ -422,6 +422,13 @@ body.is-touch .hud-bc { bottom: calc(276px + env(safe-area-inset-bottom, 0px)); 
 .net-off p { margin: 0; color: var(--muted); line-height: 1.5; }
 #net-ready.on { background: var(--go); color: #06210f; }
 #net-fill { max-width: 320px; }
+/* the erg */
+.btn-erg { border-color: rgba(201,211,182,.55); color: #c9d3b6; }
+.erg-sheet { width: min(720px, 100%); }
+#ergview { position: fixed; inset: 0; z-index: 25; background: #0f1a22; }
+#erg-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.erg-touch { position: absolute; left: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; flex-wrap: wrap; }
+body:not(.is-touch) .erg-touch #erg-up, body:not(.is-touch) .erg-touch #erg-down, body:not(.is-touch) .erg-touch #erg-tap { display: none; }
 /* regattas, points series and chat */
 .net-lobby-cols { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px 18px; align-items: start; }
 .net-lobby-main { display: grid; gap: 14px; min-width: 0; }
@@ -681,6 +688,7 @@ kbd { font-family: var(--f-data); font-size: 12px; background: rgba(255,255,255,
       </div>
       <div class="mast-actions">
         <button class="btn btn-online" id="btn-online" type="button" title="Online mode: race your friends on their own screens. It has its own crew and record, separate from the race card.">Online mode</button>
+        <button class="btn btn-erg" id="btn-erg" type="button" title="The erg: a Concept2 test for anyone in the squad, against his real result">Erg</button>
         <button class="btn btn-duel" id="btn-duel" type="button" title="Two players, one screen: draft your crews, then race side by side">1v1 split screen</button>
         <button class="btn" id="btn-random" type="button" title="Random school, crew, event, distance, opposition, cox, conditions and time of day">Randomise everything</button>
         <button class="btn" id="btn-help" type="button">How to race</button>
@@ -896,6 +904,24 @@ kbd { font-family: var(--f-data); font-size: 12px; background: rgba(255,255,255,
     <div class="sheet-b" id="net-body"></div>
   </div>
 </div>
+<div class="overlay" id="erg" hidden>
+  <div class="sheet narrow erg-sheet">
+    <div class="sheet-h">
+      <div><span class="eyebrow">The erg room</span><h2 class="disp">Erg</h2></div>
+      <div class="go-row"><button class="btn-go" id="erg-go" type="button">Sit on and row</button><button class="btn" id="erg-close" type="button">Back to the boatshed</button></div>
+    </div>
+    <div class="sheet-b" id="erg-body"></div>
+  </div>
+</div>
+<div id="ergview" hidden>
+  <canvas id="erg-cv"></canvas>
+  <div class="erg-touch">
+    <button class="btn" id="erg-down" type="button" aria-label="Rate down">Rate −</button>
+    <button class="btn" id="erg-up" type="button" aria-label="Rate up">Rate +</button>
+    <button class="btn-go" id="erg-tap" type="button">Catch</button>
+    <button class="btn" id="erg-stop" type="button">Stop</button>
+  </div>
+</div>
 <div id="race-chat" hidden>
   <div class="rc-log" aria-live="polite"></div>
   <form class="rc-form" hidden><input class="net-input" id="rc-in" maxlength="200" autocomplete="off" placeholder="Chat to the room · Enter to send, Esc to close" aria-label="Chat message"></form>
@@ -961,6 +987,8 @@ kbd { font-family: var(--f-data); font-size: 12px; background: rgba(255,255,255,
           <ul>
             <li><b>Venues:</b> pick the course on the race card: SIRC (nine lanes, the island grandstand, podium and 750 m bridge), Lake Karapiro (the Domain bank, with the dam past the finish), Lake Barrington (a narrow lake in a forested Tasmanian gorge, where a gale always blows: a hard cross-tail or cross-head that swings the splits and pushes you off your line) or the old Head of the River course on the Nepean, finishing by the Penrith bridges. The other three have eight lanes.</li>
             <li><b>Boat class</b> (race card): the eight, a coxed four, a single scull (no cox: you set the rate and steer yourself) or, at Lake Barrington only, the old coxed quad with big back arms on its riggers. Each class keeps its own crew. Edward McDonald and those back arms do not get on.</li>
+            <li><b>Erg</b> (top of the boatshed): a Concept2 piece (500 m, 1k, 2k or 5k) for anyone in the squad, with his real 2k test rowing beside you as the pace. Call the rate with ↑/↓ and, if you like, hit every catch yourself with Space. Higher rates make more power but empty the tank faster; when it's empty your split falls apart. Bests are kept for each rower and distance.</li>
+            <li><b>Henley</b>: the Royal Regatta course on the Thames. Two crews race side by side between the booms (Berks and Bucks stations), from Temple Island past Fawley and the enclosures to the line.</li>
             <li><b>Online mode</b> (top of the boatshed) is separate from everything else: it has its own crew, cox, school and boat, its own win record, and the host's course never changes anyone's race card. You're only online while you're in it. Opened from the game's website, Online mode has a lobby: create your own regatta (name it, choose the course, single races or a points series of 3, 5 or 7 races scored 10, 8, 6, 5, 4, 3, 2, 1, cap the entries, list it or keep it private with its code), or join one from Regattas on now. There's a lobby chat, a chat in each regatta, and on the water press T to talk. Or swap invite codes: put your name in and pick Host a race: you get an invite code for each friend to send them (with the link to the game), and they send you back a reply code to paste in. That connects your browsers straight to each other, so your friends don't need a Claude account. If you're all signed in to Claude and the game's been shared with you, you can also create a race with a four-letter code, or join one from Open races. The host picks the venue, distance, boat class, conditions and whether GPS crews fill the empty lanes. Everyone races at once on the same course in the same weather; your clock starts at your own green light, so a slow connection never costs you, and a false start just means the starter goes again for you. Infinite energy is on for everyone unless the host turns it off. No coach bonuses, and online times don't count as PBs or win medals. Direct connections can fail on some work, school or public Wi-Fi; mobile data usually works.</li>
             <li><b>Course preview:</b> before each race the camera flies from the finish line back to the start, past the venue's landmarks. <kbd>Space</kbd> or a click skips it.</li>
             <li><b>Start:</b> wait for the green light, then hit <kbd>Space</kbd>. Go early and you get a yellow card. Two and you're out.</li>
@@ -8983,6 +9011,266 @@ function netRenderRoom(force) {
     : c && c.st !== "room" && NET.me && !c.lanes.some((l) => l[0] === NET.me.peer) ? `A race is on (${racing.map((p) => p.name).join(", ")}). You'll be in the next one.`
     : NET.ready ? "You're in. Waiting for the host to start." : "Press I'm ready when your crew's set.";
 }
+// ============================================================================
+// THE ERG — a Concept2 test on the rowing machine, for anyone in the squad
+// Pick a rower and a distance and row it: call the rate (↑/↓) and, if you like, hit every catch yourself
+// (Space, as the handle reaches the front). The same kind of tank as the boat: power above critical power
+// drains it, below it you get a little back, and when it's empty you're rowing on fumes. Their real erg test
+// rows beside you as the pace boat, and your best for each rower and distance is kept.
+// ============================================================================
+const ERG_DISTS = [500, 1000, 2000, 5000];
+const ERG_KEY = "hotr-erg-v1";
+const ERG = { active: false, view: null, cv: null, ctx: null, raf: 0, last: 0, s: null, keys: {}, opts: { rower: null, dist: 2000, manual: false } };
+function ergStore() { try { return JSON.parse(localStorage.getItem(ERG_KEY) || "{}") || {}; } catch (e) { return {}; } }
+function ergSave(o) { try { localStorage.setItem(ERG_KEY, JSON.stringify(o)); } catch (e) { /* this visit only */ } }
+// pace (s/500 m) ↔ watts, the Concept2 way
+const ergPace = (w) => 500 * Math.cbrt(2.8 / Math.max(w, 1));
+const ergWatts = (pace) => 2.8 / (pace / 500) ** 3;
+// a rower's 2k power: his test, or (no test) his place in the squad on the erg's scale
+function ergW2k(r) { return r.ergW || (r.ergSec ? ergWatts(r.ergSec / 4) : r.testW || 300); }
+function ergTestSec(r) { return r.ergSec || 4 * ergPace(ergW2k(r)); }
+// his pace for another distance (Paul's law: about 5 s/500 m slower each time the distance doubles)
+function ergGhostPace(r, D) { return ergTestSec(r) / 4 + 5 * Math.log2(D / 2000); }
+
+function ergOpen() {
+  if (G.race || G.duel) return;
+  const st = ergStore();
+  if (st.opts) Object.assign(ERG.opts, st.opts);
+  if (!squad.all.some((r) => r.id === ERG.opts.rower)) ERG.opts.rower = squad.ranked[0].id;
+  if (!ERG_DISTS.includes(ERG.opts.dist)) ERG.opts.dist = 2000;
+  $("erg").hidden = false;
+  ergRenderSetup();
+}
+function ergClose() { $("erg").hidden = true; }
+function ergRenderSetup() {
+  const o = ERG.opts, pbs = ergStore().pbs || {};
+  const r = rowerById(o.rower);
+  const rows = squad.ranked.concat(squad.all.filter((x) => !squad.ranked.includes(x)));
+  $("erg-body").innerHTML = `
+    <div class="row2">
+      <div class="field"><label class="eyebrow" for="erg-rower">Rower</label><select id="erg-rower">${rows.map((x) => `<option value="${x.id}"${x.id === o.rower ? " selected" : ""}>${escapeHtml(x.name)}${x.ergTime ? ` · ${escapeHtml(x.ergTime)}${x.ergNote === "est" ? " (est.)" : ""}` : ""}</option>`).join("")}</select>
+        <div class="hint">${escapeHtml(r.name)}: 2k test ${r.ergTime ? escapeHtml(r.ergTime) : "not done"}${r.ergW ? ` · ${Math.round(r.ergW)} W` : ""}${r.kg ? ` · ${r.kg} kg` : ""}. His test rows beside you as the pace boat.</div></div>
+      <div class="field"><span class="eyebrow">Piece</span><div class="seg" id="erg-dist">${ERG_DISTS.map((d) => `<button type="button" data-v="${d}" aria-pressed="${d === o.dist}">${d >= 1000 ? d / 1000 + "k" : d + " m"}</button>`).join("")}</div>
+        <div class="hint">Your best: ${pbs[o.rower + ":" + o.dist] ? S.fmtTime(pbs[o.rower + ":" + o.dist], 1) : "none yet"} · his pace: ${S.fmtTime(ergGhostPace(r, o.dist), 1)} /500 m</div></div>
+    </div>
+    <div class="field"><span class="eyebrow">Options</span><div class="toggles"><label for="erg-man"><input type="checkbox" id="erg-man"${o.manual ? " checked" : ""}> Hit every catch myself (Space): timing it well is worth up to 40% of each stroke</label></div></div>
+    <div class="hint">↑ / ↓ call the rate (Shift for two). Rate costs energy: 2k pace sits around 30–34. The tank is sized so his test pace just lasts the distance; above it you're borrowing, and when it's empty your split falls apart. Esc stops the piece.</div>`;
+  $("erg-rower").addEventListener("change", (e) => { o.rower = parseInt(e.target.value, 10); ergSave({ ...ergStore(), opts: o }); ergRenderSetup(); });
+  $("erg-dist").addEventListener("click", (e) => { const b = e.target.closest("[data-v]"); if (!b) return; o.dist = parseInt(b.dataset.v, 10); ergSave({ ...ergStore(), opts: o }); ergRenderSetup(); });
+  $("erg-man").addEventListener("change", (e) => { o.manual = e.target.checked; ergSave({ ...ergStore(), opts: o }); });
+}
+
+// ---------------------------------------------------------------------------
+// The piece
+// ---------------------------------------------------------------------------
+function ergStart() {
+  audio.init();
+  const r = rowerById(ERG.opts.rower), D = ERG.opts.dist;
+  const W2k = ergW2k(r), T2k = ergTestSec(r), CP = 0.86 * W2k;
+  // the tank: his 2k power held for his 2k time just empties it (plus a little for the start), scaled to the piece
+  const tank = (W2k - CP) * T2k * Math.pow(D / 2000, 0.25) + W2k * 6;
+  ERG.s = {
+    r, D, W2k, CP, tank, w: tank, t: 0, dist: 0, rate: 0, target: D <= 500 ? 36 : D >= 5000 ? 28 : 32, phase: 0.95, started: false, count: 3.2,
+    power: 0, strokeP: 0, q: 0.9, pressed: null, lastQ: null, curve: [], strokes: 0, splits: [], splitAt: D <= 500 ? 100 : 500, nextSplit: D <= 500 ? 100 : 500,
+    ghostPace: ergGhostPace(r, D), done: false, msg: "", msgT: 0, manual: !!ERG.opts.manual, sumW: 0,
+  };
+  $("erg").hidden = true; $("menu").hidden = true;
+  const v = $("ergview"); v.hidden = false;
+  ERG.active = true; ERG.cv = $("erg-cv"); ERG.ctx = ERG.cv.getContext("2d");
+  ERG.last = performance.now();
+  cancelAnimationFrame(ERG.raf); ERG.raf = requestAnimationFrame(ergFrame);
+}
+function ergStop(toMenu) {
+  ERG.active = false; cancelAnimationFrame(ERG.raf);
+  $("ergview").hidden = true;
+  if (toMenu) { $("menu").hidden = false; ergOpen(); }
+}
+function ergSay(s, msg) { s.msg = msg; s.msgT = 2.2; }
+function ergFrame(now) {
+  if (!ERG.active) return;
+  const dt = Math.min(0.05, (now - ERG.last) / 1000); ERG.last = now;
+  const s = ERG.s;
+  if (!s.done) ergStep(s, dt);
+  ergDraw(s);
+  ERG.raf = requestAnimationFrame(ergFrame);
+}
+function ergStep(s, dt) {
+  s.msgT -= dt;
+  if (!s.started) {
+    s.count -= dt;
+    if (s.count <= 0) { s.started = true; audio.beep(1040, 0.25, 0.35); s.rate = s.target; s.phase = 0; ergCatch(s); }
+    return;
+  }
+  s.t += dt;
+  s.rate += (s.target - s.rate) * Math.min(1, dt * 1.5);
+  s.phase += dt * s.rate / 60;
+  if (s.phase >= 1) { s.phase -= 1; ergCatch(s); }
+  // the power goes in on the drive: the flywheel carries the speed through the recovery, so the monitor sees it as steady
+  const P = s.strokeP;
+  if (P > s.CP) s.w -= (P - s.CP) * dt; else s.w = Math.min(s.tank, s.w + (s.CP - P) * 0.3 * dt);
+  s.w = Math.max(0, s.w);
+  const v = Math.cbrt(P / 2.8);
+  s.dist += v * dt; s.sumW += P * dt; s.power = P;
+  while (s.dist >= s.nextSplit && s.nextSplit <= s.D) { s.splits.push(s.t - s.splits.reduce((a, b) => a + b, 0)); s.nextSplit += s.splitAt; }
+  if (s.dist >= s.D) ergFinish(s, s.t - (s.dist - s.D) / Math.max(v, 0.1));
+}
+// a new stroke: how well the catch was timed, and so how much goes into it
+function ergCatch(s) {
+  let q = 0.95;
+  if (s.manual) {
+    if (s.pressed == null) { q = 0.4; ergSay(s, "Missed the catch!"); }
+    else { const err = Math.abs(s.pressed); q = clamp(1.05 - err / 0.22, 0.45, 1); if (err > 0.16) ergSay(s, s.pressed < 0 ? "Early!" : "Late!"); }
+  }
+  s.pressed = null;
+  const dying = s.w <= 0;
+  let P = s.W2k * Math.pow(s.rate / 32, 0.85) * (0.6 + 0.4 * q);
+  if (dying) { P = Math.min(P, s.CP * 0.94); if (s.strokes % 4 === 0) ergSay(s, "Empty! Hold on!"); }
+  s.q = q; s.lastQ = q; s.strokeP = P; s.strokes++;
+  // the force curve for this stroke: a smooth hump, peakier at higher rates, ragged when the catch was off
+  const n = 40, peak = P / s.W2k;
+  s.curve = Array.from({ length: n }, (_, i) => { const u = i / (n - 1); const base = Math.sin(Math.PI * Math.pow(u, 0.85 + (1 - q) * 0.6)); return peak * base * (1 + (1 - q) * 0.25 * Math.sin(u * 19)); });
+}
+function ergKey(e) {
+  if (!ERG.active) return false;
+  const s = ERG.s;
+  if (e.code === "Escape") { e.preventDefault(); ergStop(true); return true; }
+  if (s.done) { if (e.code === "Enter" || e.code === "Space") { e.preventDefault(); ergStop(true); } return true; }
+  if (e.code === "ArrowUp" || e.code === "KeyW") { e.preventDefault(); s.target = clamp(s.target + (e.shiftKey ? 2 : 1), 16, 50); return true; }
+  if (e.code === "ArrowDown" || e.code === "KeyS") { e.preventDefault(); s.target = clamp(s.target - (e.shiftKey ? 2 : 1), 16, 50); return true; }
+  if (e.code === "Space" || e.code === "Enter") { e.preventDefault(); if (!e.repeat) ergTap(s); return true; }
+  return true;
+}
+// a tap: how far from the next catch (in seconds; −: early)
+function ergTap(s) {
+  if (!s.started || !s.manual) return;
+  const T = 60 / s.rate, toCatch = (1 - s.phase) * T, sinceCatch = s.phase * T;
+  s.pressed = toCatch < sinceCatch ? -toCatch : null;
+  if (s.pressed == null && sinceCatch < 0.3) ergSay(s, "Late!");
+}
+function ergFinish(s, time) {
+  s.done = true; s.time = time; s.power = 0;
+  const st = ergStore(), key = s.r.id + ":" + s.D;
+  st.pbs = st.pbs || {};
+  s.pb = !st.pbs[key] || time < st.pbs[key];
+  if (s.pb) st.pbs[key] = time;
+  ergSave(st);
+  s.ghostTime = s.ghostPace * s.D / 500;
+  audio.beep(1320, 0.35, 0.4);
+}
+
+// ---------------------------------------------------------------------------
+// Drawing: the rower on the machine, the monitor, the force curve
+// ---------------------------------------------------------------------------
+function ergDraw(s) {
+  const cv = ERG.cv, dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = cv.clientWidth, H = cv.clientHeight;
+  if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
+  const g = ERG.ctx; g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.fillStyle = "#0f1a22"; g.fillRect(0, 0, W, H);
+  const wide = W > 760, mw = wide ? Math.min(420, W * 0.42) : W - 32, mx = wide ? W - mw - 28 : 16, my = wide ? 28 : H * 0.5;
+  ergDrawRower(g, s, wide ? 28 : 16, wide ? H * 0.18 : 20, wide ? W - mw - 84 : W - 32, wide ? H * 0.62 : H * 0.42);
+  ergDrawMonitor(g, s, mx, my, mw, wide ? H - 56 : H * 0.5 - 16);
+}
+function ergDrawRower(g, s, x0, y0, w, h) {
+  // side view: the flywheel on the right, the rail, the seat slides; the rower's legs, back and arms by the phase
+  const sc = Math.min(w / 640, h / 300), ox = x0 + w / 2 - 300 * sc, oy = y0 + h * 0.78;
+  const P = (x, y) => [ox + x * sc, oy - y * sc];
+  const drive = clamp(0.8 * s.rate / 60, 0.28, 0.55), ph = s.started ? s.phase : 0;
+  // 0 at the catch, 1 at the finish
+  const u = ph < drive ? ph / drive : 1 - (ph - drive) / (1 - drive);
+  const legs = clamp(u / 0.6, 0, 1), body = clamp((u - 0.35) / 0.4, 0, 1), arms = clamp((u - 0.65) / 0.35, 0, 1);
+  g.lineCap = "round"; g.lineJoin = "round";
+  // the machine
+  g.strokeStyle = "#3d4a55"; g.lineWidth = 10 * sc;
+  g.beginPath(); g.moveTo(...P(20, 18)); g.lineTo(...P(560, 30)); g.stroke();
+  g.fillStyle = "#26323b"; g.beginPath(); g.arc(...P(560, 70), 52 * sc, 0, TAU); g.fill();
+  g.strokeStyle = "#5c6a75"; g.lineWidth = 3 * sc; g.beginPath(); g.arc(...P(560, 70), 52 * sc, 0, TAU); g.stroke();
+  g.save(); g.translate(...P(560, 70)); g.rotate(s.t * (s.power / 60 + 1)); g.strokeStyle = "#7a8a96";
+  for (let i = 0; i < 6; i++) { g.rotate(TAU / 6); g.beginPath(); g.moveTo(0, 0); g.lineTo(44 * sc, 0); g.stroke(); }
+  g.restore();
+  g.strokeStyle = "#3d4a55"; g.lineWidth = 5 * sc; g.beginPath(); g.moveTo(...P(560, 110)); g.lineTo(...P(600, 230)); g.stroke();
+  g.fillStyle = "#c9d3b6"; g.fillRect(...P(580, 262), 46 * sc, 34 * sc);
+  g.fillStyle = "#2a3238"; g.fillRect(...P(470, 50), 30 * sc, 12 * sc);    // the foot stretcher
+  // the rower: seat x slides from the catch (near the feet) to the finish
+  const seatX = lerp(380, 150, legs), hipY = 58, hip = [seatX, hipY];
+  const foot = [485, 62];
+  // knee: thigh and shin 115 each
+  const dx = foot[0] - hip[0], dy = foot[1] - hip[1], d = Math.min(229, Math.hypot(dx, dy)), a = Math.atan2(dy, dx), k = Math.acos(clamp(d / 230, -1, 1));
+  const knee = [hip[0] + Math.cos(a + k) * 115, hip[1] + Math.sin(a + k) * 115];
+  const lean = lerp(-0.42, 0.38, body);                                         // forwards at the catch, laid back at the finish
+  const sh = [hip[0] - Math.sin(lean) * 150 + 0, hip[1] + Math.cos(lean) * 150];
+  const handleX = lerp(sh[0] + 175, sh[0] + 40, arms), handle = [Math.min(handleX, 470), sh[1] - 22];
+  const elbow = [(sh[0] + handle[0]) / 2 - 6, (sh[1] + handle[1]) / 2 - 22 * arms];
+  g.strokeStyle = "#5CC8FF"; g.lineWidth = 2 * sc; g.beginPath(); g.moveTo(...P(...handle)); g.lineTo(...P(548, 70)); g.stroke();      // the chain
+  g.fillStyle = "#1c2a35"; g.fillRect(...P(seatX - 30, 46), 60 * sc, 10 * sc);  // seat
+  const limb = (pts, col, wd) => { g.strokeStyle = col; g.lineWidth = wd * sc; g.beginPath(); g.moveTo(...P(...pts[0])); for (const p of pts.slice(1)) g.lineTo(...P(...p)); g.stroke(); };
+  limb([hip, knee, foot], "#203b55", 22);
+  limb([hip, sh], "#f2c434", 30);
+  limb([sh, elbow, handle], "#e2b08a", 13);
+  g.fillStyle = "#e2b08a"; g.beginPath(); g.arc(...P(sh[0] - Math.sin(lean) * 34, sh[1] + Math.cos(lean) * 34), 20 * sc, 0, TAU); g.fill();
+  g.fillStyle = "#2a3238"; g.fillRect(...P(handle[0] - 4, handle[1] + 18), 8 * sc, 36 * sc);
+}
+function ergDrawMonitor(g, s, x, y, w, h) {
+  const r = 10;
+  g.fillStyle = "#1b252d"; g.beginPath(); g.roundRect(x - 10, y - 10, w + 20, h + 20, r + 6); g.fill();
+  g.fillStyle = "#c9d3b6"; g.beginPath(); g.roundRect(x, y, w, h, r); g.fill();
+  const ink = "#1d2420", dim = "#4e5a4a";
+  const txt = (t, tx, ty, size, col = ink, al = "left", wt = 700) => { g.fillStyle = col; g.font = `${wt} ${size}px "JetBrains Mono", ui-monospace, Menlo, monospace`; g.textAlign = al; g.textBaseline = "alphabetic"; g.fillText(t, tx, ty); };
+  const pad = 16, col2 = x + w - pad, fs = Math.max(12, Math.min(w / 22, 18));
+  const pace = s.power > 0 ? ergPace(s.power) : 0, avg = s.dist > 1 ? s.t / s.dist * 500 : 0;
+  const left = Math.max(0, s.D - s.dist);
+  let yy = y + pad + fs;
+  txt(`${s.r.name}`, x + pad, yy, fs * 0.85, dim, "left", 600); txt(`${s.D} m`, col2, yy, fs * 0.85, dim, "right", 600);
+  yy += fs * 2.6;
+  txt(s.done ? S.fmtTime(s.time, 1) : S.fmtTime(s.t, 1), x + pad, yy, fs * 2.1); txt(s.done ? "0" : String(Math.ceil(left)), col2, yy, fs * 2.1, ink, "right");
+  txt("time", x + pad, yy + fs * 0.9, fs * 0.7, dim, "left", 500); txt("metres to go", col2, yy + fs * 0.9, fs * 0.7, dim, "right", 500);
+  yy += fs * 3.8;
+  txt(pace ? S.fmtTime(pace, 1) : "-:--.-", x + w / 2, yy, fs * 3.6, ink, "center", 800);
+  txt("/500m", x + w / 2, yy + fs * 1.0, fs * 0.75, dim, "center", 500);
+  yy += fs * 2.8;
+  txt(String(Math.round(s.rate || 0)), x + pad, yy, fs * 1.8); txt(`${Math.round(s.power)} W`, col2, yy, fs * 1.8, ink, "right");
+  txt(`s/m · calling ${s.target}`, x + pad, yy + fs * 0.9, fs * 0.7, dim, "left", 500); txt("watts", col2, yy + fs * 0.9, fs * 0.7, dim, "right", 500);
+  yy += fs * 2.8;
+  // against his test: where his pace boat is now
+  const ghostD = s.t * 500 / s.ghostPace, gap = s.dist - ghostD;
+  txt(avg ? `avg ${S.fmtTime(avg, 1)}` : "avg -:--.-", x + pad, yy, fs * 1.1, ink, "left", 700);
+  txt(s.started ? `${gap >= 0 ? "+" : "−"}${Math.abs(gap).toFixed(0)} m vs his test` : "his test beside you", col2, yy, fs * 1.0, gap >= 0 ? "#1f6b3a" : "#8a2a1e", "right", 700);
+  yy += fs * 1.5;
+  // the tank
+  const ew = w - pad * 2, ef = clamp(s.w / s.tank, 0, 1);
+  g.fillStyle = "#aab59a"; g.fillRect(x + pad, yy, ew, fs * 0.7);
+  g.fillStyle = ef > 0.25 ? "#2f6b3e" : ef > 0 ? "#b8862a" : "#8a2a1e"; g.fillRect(x + pad, yy, ew * ef, fs * 0.7);
+  txt(`energy ${Math.round(ef * 100)}%`, x + pad, yy + fs * 1.7, fs * 0.7, dim, "left", 500);
+  if (s.manual && s.lastQ !== null) txt(`catch ${Math.round(s.q * 100)}%`, col2, yy + fs * 1.7, fs * 0.7, dim, "right", 500);
+  yy += fs * 2.4;
+  // the force curve of the last stroke
+  const ch = Math.max(40, Math.min(h - (yy - y) - (s.done ? fs * 7 : fs * 4), fs * 6));
+  if (ch > 30 && s.curve.length) {
+    g.strokeStyle = "#9aa58a"; g.lineWidth = 1; g.strokeRect(x + pad, yy, ew, ch);
+    g.strokeStyle = ink; g.lineWidth = 2.5; g.beginPath();
+    s.curve.forEach((v, i) => { const px = x + pad + (i / (s.curve.length - 1)) * ew, py = yy + ch - clamp(v / 1.6, 0, 1) * (ch - 4); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+    g.stroke();
+    txt("force curve", x + pad + 4, yy + fs * 0.9, fs * 0.65, dim, "left", 500);
+    yy += ch + fs * 0.6;
+  }
+  // splits
+  if (s.splits.length) {
+    const last = s.splits.slice(-3).map((t, i, a) => `${(s.splits.length - a.length + i + 1) * s.splitAt} m  ${S.fmtTime(t * 500 / s.splitAt, 1)}`);
+    txt(last.join("   "), x + pad, yy + fs * 0.9, fs * 0.72, dim, "left", 500);
+    yy += fs * 1.6;
+  }
+  if (!s.started) txt(s.count > 0.5 ? String(Math.ceil(s.count - 0.5)) : "ROW!", x + w / 2, y + h / 2, fs * 4, "#8a2a1e", "center", 800);
+  if (s.msgT > 0 && !s.done) txt(s.msg, x + w / 2, y + h - pad, fs * 1.1, "#8a2a1e", "center", 800);
+  if (s.done) {
+    const yb = y + h - fs * 5.2;
+    g.fillStyle = "rgba(29,36,32,.9)"; g.fillRect(x + pad, yb - fs * 1.4, ew, fs * 5.8);
+    txt(`${S.fmtTime(s.time, 1)} · ${S.fmtTime(s.time / s.D * 500, 1)} · ${Math.round(s.sumW / s.time)} W`, x + w / 2, yb, fs * 0.95, "#c9d3b6", "center", 800);
+    txt(`${s.pb ? "New best for him! " : ""}His test pace: ${S.fmtTime(s.ghostTime, 1)}`, x + w / 2, yb + fs * 1.5, fs * 0.72, "#c9d3b6", "center", 500);
+    txt(s.time < s.ghostTime ? `You beat it by ${(s.ghostTime - s.time).toFixed(1)} s` : `${(s.time - s.ghostTime).toFixed(1)} s off it`, x + w / 2, yb + fs * 2.6, fs * 0.72, "#c9d3b6", "center", 500);
+    txt("Enter: back to the erg room", x + w / 2, yb + fs * 3.7, fs * 0.72, "#f2c434", "center", 700);
+  }
+}
+
 function windKindText(k) { return { random: "random weather", glassy: "glassy water", light: "light breeze", tail: "tailwind", head: "headwind", cross: "crosswind", gusty: "gusty" }[k] || "random weather"; }
 
 // ============================================================================
@@ -10454,6 +10742,7 @@ function loop(now) {
   const rawDt = (now - G.last) / 1000; G.last = now;
   const dt = Math.min(0.05, Math.max(0, rawDt));
   if (venueBusy) { requestAnimationFrame(loop); return; }      // the world is being rebuilt behind the loading screen
+  if (ERG.active) { requestAnimationFrame(loop); return; }     // on the erg: the lake can wait
   perfMonitor(rawDt);
   if (!G.paused) update(dt);
   render();
@@ -11052,6 +11341,7 @@ function setupInput() {
   window.addEventListener("keydown", (e) => {
     if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "SELECT")) return;
     if (e.code === "KeyF" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); if (!e.repeat) toggleFullscreen(); return; }
+    if (ergKey(e)) return;
     const inRace = G.race && !["menu", "results"].includes(G.state);
     // 1v1: the left half of the keyboard is player 1, the arrows and Enter are player 2
     if (G.duel && inRace && DUEL_KEYS[e.code]) {
@@ -11065,6 +11355,7 @@ function setupInput() {
       if (e.code === "Escape" && !$("help").hidden) closeHelp();
       else if (e.code === "Escape" && !$("duel").hidden) closeDuel();
       else if (e.code === "Escape" && !$("online").hidden) netExit();
+      else if (e.code === "Escape" && !$("erg").hidden) ergClose();
       return;
     }
     switch (e.code) {
@@ -11137,6 +11428,13 @@ function setupInput() {
   $("btn-shed").addEventListener("click", () => { if (G.lastMode === "online") { netBackToRoom(false); return; } const duel = G.lastMode === "duel"; enterMenu(); if (duel) openDuel("draft"); });
   $("btn-online").addEventListener("click", (e) => { e.currentTarget.blur(); audio.init(); netOpen(); });
   netWireRaceChat();
+  $("btn-erg").addEventListener("click", (e) => { e.currentTarget.blur(); ergOpen(); });
+  $("erg-close").addEventListener("click", ergClose);
+  $("erg-go").addEventListener("click", ergStart);
+  $("erg-stop").addEventListener("click", () => ergStop(true));
+  $("erg-up").addEventListener("click", () => ergKey({ code: "ArrowUp", preventDefault() {} }));
+  $("erg-down").addEventListener("click", () => ergKey({ code: "ArrowDown", preventDefault() {} }));
+  $("erg-tap").addEventListener("pointerdown", (e) => { e.preventDefault(); ergKey({ code: "Space", preventDefault() {} }); });
   $("net-close").addEventListener("click", netExit);
   $("btn-help").addEventListener("click", () => { $("help").hidden = false; });
   $("btn-help-close").addEventListener("click", closeHelp);
